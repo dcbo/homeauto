@@ -1,21 +1,27 @@
-/******************************************************
- *** Darios Homeautomatisation v2
- ******************************************************
- *** Hardware:
- *** - Arduino Nano
- *** - 4 x I2C I/O-Expander MCP 23017
- ***   - 2 x MCP 23017 as Intput (16 Bit)
- ***     - 32 Buttons (common GND)
- ***   - 2 x MCP 23017 as Output (16 Bit)
- ***     -  4 Rollers (each 2 Outputs: on, dir)
- ***     - 24 Devices (lights, power outlets)
- ****************************************************** 
-*/
+/************************************************************
+ * Darios Homeautomatisation v2
+ ************************************************************
+ * Hardware:
+ * - Arduino Nano
+ * - 4 x I2C I/O-Expander MCP 23017
+ *   - 2 x MCP 23017 as Intput (16 Bit)
+ *     - 32 Buttons (common GND)
+ *   - 2 x MCP 23017 as Output (16 Bit)
+ *     -  4 Rollers (each 2 Outputs: on, dir)
+ *     - 24 Devices (lights, power outlets)
+ ************************************************************/
 
+/************************************************************
+ * Includes
+ ************************************************************/ 
 #include <Arduino.h>
 #include <Wire.h>
 #include <mcp23017_DC.h>
 
+
+/************************************************************
+ * Defines
+ ************************************************************/ 
 #define I2CSPEED         800000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
 #define INT_PIN               2  // Interupt Pin
 
@@ -53,6 +59,9 @@
 #define ROLL_TICK             6
 
 
+/************************************************************
+ * Program Configuration Control
+ ************************************************************/ 
 #define DO_HEARTBEAT  1
   #define HEARTBEAT 5000             // Print State Interval
 #define DO_SPEED      0
@@ -62,13 +71,22 @@
 #define DO_IRQ        1
   #define RESETINTERVAL 100
 
+
+/************************************************************
+ * Global Vars
+ ************************************************************/ 
 volatile bool irqFlag = false;
 uint32_t lastPrint;
 uint32_t lastReset;
 uint8_t  laststate;
 
+
+/************************************************************
+ * Objects
+ ************************************************************/ 
 // 4 MCP-Chips 
 mcp23017 mcp[4];
+
 
 /************************************************************
  * IRQ Handler
@@ -76,6 +94,7 @@ mcp23017 mcp[4];
 void iqrHandler() {
     irqFlag = true;
 }
+
 
 /************************************************************
  * Setup one Input-MCP
@@ -101,7 +120,6 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
   delay(100);
   mcp.writeRegister(MCP23017_IPOLA, 0xff);  
   mcp.writeRegister(MCP23017_IPOLB, 0xff);   
- 
   #if DO_IRQ
     // no Mirror, Open-Drain, LOW-active
     Serial.println(F("    - IRQ: no Mirror, Open-Drain, LOW-active"));
@@ -132,10 +150,11 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
 }
 
 
-/***********
- Setup
- ***********/
+/************************************************************
+ * Setup 
+ ************************************************************/
 void setup() {        
+  // Serial Port
   Serial.begin(115200);  
   Serial.println(F(""));
   Serial.println(F("####################################"));
@@ -182,43 +201,12 @@ void setup() {
   delay(1000);
 }
 
-/*******************
- *** Print State ***
- *******************
- prints:
-  "Port[A]: -1----11 - 0x67"
- ***********/
-void printState(uint8_t p, uint8_t s) {
-  uint8_t i;
-  // Print Label
-  Serial.print(F("Port["));
-  if (p==1) {
-    Serial.print(F("A"));
-  } else if (p==2) {
-    Serial.print(F("B"));
-  } else {
-    Serial.print(F("undefined"));
-  } 
-  Serial.print(F("]: "));
-  // Print Bits  
-  for (i=0; i<8; i++) {
-    if ((s & (1<<i)) == 0) {
-      Serial.print(F("-"));
-    } else {
-      Serial.print(F("1"));
-    }
-  }  
-  Serial.print(F(" - 0x"));
-  // Print Value 
-  Serial.println(s);
-}
 
-/**************************
- *** Print 16-Bit State ***
- **************************
- prints:
-  "Port[A+B]: -1----11 -1----11 - 0x67"
- ***********/
+/************************************************************
+ *  Print State 
+ ************************************************************
+ * - prints: ": -1----11 -1----11 [0x67]"      
+ ************************************************************/
 void printStateAB(uint16_t s) {
   uint8_t i;
   // Print Label
@@ -241,9 +229,9 @@ void printStateAB(uint16_t s) {
 }
 
 #if DO_SPEED
-  /*****************
-   *** Speedtest ***
-   *****************/
+  /************************************************************
+   * Speedtest 
+   ************************************************************/
   void SpeedTest() {
     uint32_t i;
     uint8_t  v8;
@@ -296,9 +284,9 @@ void printStateAB(uint16_t s) {
 #endif  // DO_SPEED
 
 #if DO_HEARTBEAT
-  /*******************
-   *** Read Inputs ***
-   *******************/  
+  /************************************************************
+   * Read Inputs
+   ************************************************************/  
   void ReadInputs() {  
     if (millis() - lastPrint > HEARTBEAT) {    
       lastPrint = millis();
@@ -311,9 +299,9 @@ void printStateAB(uint16_t s) {
 #endif // DO_HEARTBEAT
 
 #if DO_IRQ
-  /*******************
-   *** Process IRQ ***
-   *******************/
+  /************************************************************
+   * Process IRQ 
+   ************************************************************/
   void ProcessIrq() {    
     uint16_t i_port;    
     uint8_t intstate;
@@ -352,9 +340,9 @@ void printStateAB(uint16_t s) {
   void ProcessIrq() {}  
 #endif // DO_IRQ
 
-/***********
- Main Loop
- ***********/
+/************************************************************
+ * Main Loop
+ ************************************************************/
 void loop(){ 
   SpeedTest();
   ReadInputs();

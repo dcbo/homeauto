@@ -1,106 +1,129 @@
+/******************************************************
+ *** Darios Homeautomatisation v2
+ ******************************************************
+ *** Hardware:
+ *** - Arduino Nano
+ *** - 4 x I2C I/O-Expander MCP 23017
+ ***   - 2 x MCP 23017 as Intput (16 Bit)
+ ***     - 32 Buttons (common GND)
+ ***   - 2 x MCP 23017 as Output (16 Bit)
+ ***     -  4 Rollers (each 2 Outputs: on, dir)
+ ***     - 24 Devices (lights, power outlets)
+ ****************************************************** 
+*/
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <mcp23017_DC.h>
 
+#define I2CSPEED         800000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
+#define INT_PIN               2  // Interupt Pin
 
-/******************************************************
- *** Speed Test:
- ******************************************************
- *** Read all 16 GPIOs
- *** -  8-Bit mode: read each GPIO Register seperate
- *** - 16-Bit mode: read bith GPIO Register in one call
- *** Do 10.000 iterations 
- *** calculte time to read all 16 GPIOs in [us]
- ******************************************************
- *** Results:
- ******************************************************
-  I2CSPEED      8-Bit Mode    16-Bit Mode
-    100000          899          550
-    200000          511          307 
-    300000          368          222 
-    400000          310          186 
-    600000          241          143 
-    800000          210          125 
-   1000000          190          113 
-   1200000         2711         1656  
-*/
-#define I2CSPEED 800000
-#define MCP_ADDR  0x20          // (A2/A1/A0 = LOW) 
-#define INT_PIN   2             // Interupt Pin
+// Constants
+#define BUTTON_T0            20  // <T0= No Klick (Noise)  20ms (T0-1)*10ms (max   30ms)
+#define BUTTON_T1          1000  // >T1= Long Klick       950ms (T1-1)*10ms (max 1000ms)
+#define BUTTON_T2           200  // <T2= Double Klick     190ms (T2-1)*10ms (max  200ms)
 
-#define DO_HEARTBEAT  0
+// Scenes
+#define SCENE_ALL_OFF         0  // Turn everything OFF
+#define SCENE_ALL_ON          1  // Turn everything ON
+#define SCENE_LEAVING         2  // Leaving the House
+#define SCENE_BED             3  // Scene Bett: alles aus bis auf Balkonlicht
+#define SCENE_BED_delay       4  // Scene Bett Delay: alles aus bis auf Balkonlicht, Schlafzimmer 30s an
+
+// Timer
+#define MAX_TIMER             8
+#define tm_2L1_off            0
+#define tm_ROL01_stop         1
+#define tm_ROL23_stop         2
+#define tm_L5_off             3
+
+// Button Event Types
+#define EVENT_CLICK           0
+#define EVENT_CLICK_DOUBLE    1
+#define EVENT_CLICK_LONG      2
+
+// Roller Action Types
+#define ROLL_STOP             0
+#define ROLL_START_UP         1
+#define ROLL_START_DOWN       2
+#define ROLL_START_OPPOSITE   3
+#define ROLL_START_SAME       4
+#define ROLL_CLICK            5
+#define ROLL_TICK             6
+
+
+#define DO_HEARTBEAT  1
   #define HEARTBEAT 5000             // Print State Interval
 #define DO_SPEED      0
   #define SPEEDRUNS     10000
   #define SPEEDUSDIVISOR (SPEEDRUNS / 1000)
   #define SPEEDBEAT     1000
 #define DO_IRQ        1
-#define RESETINTERVAL 100
+  #define RESETINTERVAL 100
 
 volatile bool irqFlag = false;
 uint32_t lastPrint;
 uint32_t lastReset;
 uint8_t  laststate;
 
-mcp23017 mcp[2];
-// mcp23017 mcp2;
-// mcp23017 mcp3;
-// mcp23017 mcp4;
+// 4 MCP-Chips 
+mcp23017 mcp[4];
 
-
-#if DO_IRQ
-/***********
- IRQ Handler
- ***********/
+/************************************************************
+ * IRQ Handler
+ ***********************************************************/
 void iqrHandler() {
     irqFlag = true;
 }
-#endif // DO_IRQ
 
-
-/***************
- Setup Input-MCP
- ***************/
-void setupInputMcp(mcp23017& mcp, uint8_t adr) {
+/************************************************************
+ * Setup one Input-MCP
+ ***********************************************************/
+void setupInputMcp(mcp23017& mcp, uint8_t adr) {  
+  Serial.print(F("- MCP23017 #"));
+  Serial.print(adr);
+  Serial.println(F("- [INPUT]"));
+  delay(100);
   mcp.begin(adr, &Wire);  
   // Direction: INPUT
-  Serial.println("  - Direction: INPUT");
+  Serial.println(F("  - Direction: INPUT"));
   delay(100);
   mcp.writeRegister(MCP23017_IODIRA, 0xff); 
   mcp.writeRegister(MCP23017_IODIRB, 0xff);   
   // Pull-UP: enable 
-  Serial.println("  - Pull-UP: enable");
+  Serial.println(F("  - Pull-UP: enable"));
   delay(100);
   mcp.writeRegister(MCP23017_GPPUA, 0xff);  
   mcp.writeRegister(MCP23017_GPPUB, 0xff);   
   // Input Polarity: low active = 1
-  Serial.println("  - Input Polarity: low active");
+  Serial.println(F("  - Input Polarity: low active"));
   delay(100);
   mcp.writeRegister(MCP23017_IPOLA, 0xff);  
   mcp.writeRegister(MCP23017_IPOLB, 0xff);   
  
   #if DO_IRQ
     // no Mirror, Open-Drain, LOW-active
-    Serial.println("    - IRQ: no Mirror, Open-Drain, LOW-active");        
+    Serial.println(F("    - IRQ: no Mirror, Open-Drain, LOW-active"));
     delay(100);
     mcp.setupInterrupts(0, 1, 0);          
     // Interrupt Mode: on-default / on-change
-    Serial.println("    - IRQ Mode: Change");
+    Serial.println(F("    - IRQ Mode: Change"));
     delay(100);
     mcp.writeRegister(MCP23017_INTCONA, 0x00);  // 0x00: Change
     mcp.writeRegister(MCP23017_INTCONB, 0x00);  // 0xff: Default      
     // Default Value 
-    Serial.println("    - IRQ: Set Default Values");    
+    Serial.println(F("    - IRQ: Set Default Values"));
     delay(100);
     mcp.writeRegister(MCP23017_DEFVALA, 0x00);  // A
     mcp.writeRegister(MCP23017_DEFVALB, 0x00);  // B    
     // Interrupt Enable
-    Serial.println("    - Enable Interrupts");    
+    Serial.println(F("    - Enable Interrupts"));    
     delay(100);
     mcp.writeRegister(MCP23017_GPINTENA, 0xff); // 1: Enable 
     mcp.writeRegister(MCP23017_GPINTENB, 0x00); // 0: Disable    
     // clearInterrupts
-    Serial.println("    - clearInterrupts");
+    Serial.println(F("    - clearInterrupts"));
     delay(100);
     uint8_t i;
     i = mcp.readRegister(MCP23017_INTCAPA);
@@ -114,48 +137,48 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
  ***********/
 void setup() {        
   Serial.begin(115200);  
-  Serial.println("");
-  Serial.println("####################################");
-  Serial.println("### Darios Homeautomation v2.0.0 ###");
-  Serial.println("####################################");
-  Serial.println("Init ...");
+  Serial.println(F(""));
+  Serial.println(F("####################################"));
+  Serial.println(F("### Darios Homeautomation v2.0.0 ###"));
+  Serial.println(F("####################################"));
+  Serial.println(F("Init ..."));
   delay(1000);
 
   // MCP23017
-  Serial.println("- MCP23017 #1");
+  Serial.println(F("- MCP23017 #1"));
   setupInputMcp(mcp[0], 0);
 
   // Arduino IRQ
   #if DO_IRQ    
-    Serial.print("- Arduino IRQ ...");
+    Serial.print(F("- Arduino IRQ ..."));
     pinMode(INT_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(INT_PIN), iqrHandler, FALLING);
-    Serial.println(" done.");    
+    Serial.println(F(" done."));
   #endif // DO_IRQ
   delay(500);
 
   // Set I2C Speed
-  Serial.print("- I2C: Set Speed to ");  
+  Serial.print(F("- I2C: Set Speed to "));
   Serial.print(I2CSPEED);
-  Serial.print(" ...");
+  Serial.print(F(" ..."));
   delay(100);
-  // Wire.setClock(I2CSPEED);
-  Serial.println(" done.");
+  Wire.setClock(I2CSPEED);
+  Serial.println(F(" done."));
   delay(500);
  
   // Global vars
-  Serial.print("- Global Vars ... ");
+  Serial.print(F("- Global Vars ... "));
   delay(100);
   laststate = 0xff;
   lastReset = millis();
   lastPrint = millis();
   irqFlag = false;
-  Serial.println("done.");
+  Serial.println(F("done."));
   delay(500);
 
   // init finished
-  Serial.println("Init complete, starting Main-Loop"); 
-  Serial.println("#################################");
+  Serial.println(F("Init complete, starting Main-Loop"));
+  Serial.println(F("#################################"));
   delay(1000);
 }
 
@@ -168,24 +191,24 @@ void setup() {
 void printState(uint8_t p, uint8_t s) {
   uint8_t i;
   // Print Label
-  Serial.print("Port[");
+  Serial.print(F("Port["));
   if (p==1) {
-    Serial.print("A");
+    Serial.print(F("A"));
   } else if (p==2) {
-    Serial.print("B");
+    Serial.print(F("B"));
   } else {
-    Serial.print("undefined");
+    Serial.print(F("undefined"));
   } 
-  Serial.print("]: ");
+  Serial.print(F("]: "));
   // Print Bits  
   for (i=0; i<8; i++) {
     if ((s & (1<<i)) == 0) {
-      Serial.print("-");
+      Serial.print(F("-"));
     } else {
-      Serial.print("1");
+      Serial.print(F("1"));
     }
   }  
-  Serial.print(" - 0x");
+  Serial.print(F(" - 0x"));
   // Print Value 
   Serial.println(s);
 }
@@ -199,21 +222,22 @@ void printState(uint8_t p, uint8_t s) {
 void printStateAB(uint16_t s) {
   uint8_t i;
   // Print Label
-  Serial.print("Port[A+B]: ");
+  Serial.print(F(": "));
   // Print Bits  
   for (i=0; i<16; i++) {
     if ((s & (1<<i)) == 0) {
-      Serial.print("-");
+      Serial.print(F("-"));
     } else {
-      Serial.print("1");
+      Serial.print(F("1"));
     }
     if (i==7) {
-      Serial.print(" ");
+      Serial.print(F(" "));
     }
   }  
-  Serial.print(" - 0x");
+  Serial.print(F(" [0x"));
   // Print Value 
-  Serial.println(s,HEX);
+  Serial.print(s,HEX);
+  Serial.println(F("]"));
 }
 
 #if DO_SPEED
@@ -221,99 +245,84 @@ void printStateAB(uint16_t s) {
    *** Speedtest ***
    *****************/
   void SpeedTest() {
-    if (millis() - lastPrint > SPEEDBEAT) {    
-      uint32_t i;
-      uint32_t startT;
-      uint32_t endT;
-      uint16_t us16bit;
-      uint16_t us8bit;
-      Serial.println("-------------------------------------");
-      Serial.println("Speedtest started ...");
+    uint32_t i;
+    uint8_t  v8;
+    uint16_t v16;
+    uint32_t startT;
+    uint32_t endT;
+    uint16_t us16bit;
+    uint16_t us8bit;
+    if (millis() - lastPrint > SPEEDBEAT) {          
+      Serial.println(F("-------------------------------------"));
+      Serial.println(F("Speedtest started ..."));
       // 8 Bit Mode
-      Serial.println("1: 8 Bit Mode (read MCP-Registers seperate)");
+      Serial.println(F("1: 8 Bit Mode (read MCP-Registers seperate)"));
       startT = millis();
       for (i=0; i<SPEEDRUNS; i++) {
-        v8 = mcp.readGPIO(0);                // Read Port A + B
-        v8 = mcp.readGPIO(1);                // Read Port A + B          
+        v8 = mcp[0].readGPIO(0);                // Read Port A + B
+        v8 = mcp[0].readGPIO(1);                // Read Port A + B          
       }     
       endT = millis();    
       us8bit = (endT-startT) / SPEEDUSDIVISOR;
-      Serial.print("   Started: ");     Serial.print(startT);  
-      Serial.print(" - Finished: ");    Serial.print(endT);  
-      Serial.print(" - Dauer: ");       Serial.println(endT-startT);              
-      Serial.println("-------------------------------------");
+      Serial.print(F("   Started: "));     Serial.print(startT);  
+      Serial.print(F(" - Finished: "));    Serial.print(endT);  
+      Serial.print(F(" - Dauer: "));       Serial.println(endT-startT);              
+      Serial.println(F("-------------------------------------"));
       
       // 16 Bit Mode
-      Serial.println("2: 16 Bit Mode (read both MCP-Registers in one call)");
+      Serial.println(F("2: 16 Bit Mode (read both MCP-Registers in one call)"));
       startT = millis();
       for (i=0; i<SPEEDRUNS; i++) {      
-        v16 = mcp.readGPIOAB();                // Read Port A + B    
+        v16 = mcp[0].readGPIOAB();                // Read Port A + B    
       } 
       endT = millis();    
       us16bit = (endT-startT) / SPEEDUSDIVISOR;
-      Serial.print("   Started: ");     Serial.print(startT);  
-      Serial.print(" - Finished: ");    Serial.print(endT);  
-      Serial.print(" - Dauer: ");       Serial.println(endT-startT);  
-      Serial.println("-------------------------------------");
-      Serial.print("  I2C-Speed: ");  Serial.println(I2CSPEED);
-      Serial.print("      8-Bit: ");  Serial.print(us8bit);   Serial.println("us per Sample");  
-      Serial.print("     16-Bit: ");  Serial.print(us16bit);  Serial.println("us per Sample");  
-      Serial.println("--------------------------------------------------------------------------");        
+      Serial.print(F("   Started: "));     Serial.print(startT);  
+      Serial.print(F(" - Finished: "));    Serial.print(endT);  
+      Serial.print(F(" - Dauer: "));       Serial.println(endT-startT);  
+      Serial.println(F("-------------------------------------"));
+      Serial.print(F("  I2C-Speed: "));  Serial.println(I2CSPEED);
+      Serial.print(F("      8-Bit: "));  Serial.print(us8bit);   Serial.println(F("us per Sample"));
+      Serial.print(F("     16-Bit: "));  Serial.print(us16bit);  Serial.println(F("us per Sample"));
+      Serial.println(F("--------------------------------------------------------------------------"));
       lastPrint = millis();
+      // to surpress "unused Variable" warnings
+      v16 = v8++;
+      v8 = (v16 | 0xff);
     }
   }
+#else 
+  void SpeedTest() {}  
 #endif  // DO_SPEED
 
 #if DO_HEARTBEAT
   /*******************
    *** Read Inputs ***
-   *******************/
-  void ReadInputs() {
+   *******************/  
+  void ReadInputs() {  
     if (millis() - lastPrint > HEARTBEAT) {    
       lastPrint = millis();
-      Serial.print("HeartBeat [");
-      Serial.print(lastPrint);
-      Serial.println("]");      
-      // 16 Bit Read
-      Serial.println("16Bit Read:");
-      v16 = mcp.readGPIOAB();                // Read Port A + B    
-      printStateAB(v16);      
-      // 8 Bit Read
-      Serial.println("8Bit Read:");
-      v16 = mcp.readGPIO(0);                // Read Port A       
-      v8  = mcp.readGPIO(1);                // Read Port B  
-      v16 = v16 + (v8 << 8);
-      printStateAB(v16);
-      Serial.println("-------------------------------------");        
+      Serial.print(F("H"));
+      printStateAB(mcp[0].readGPIOAB());
     } 
   } 
+#else 
+  void ReadInputs() {}  
 #endif // DO_HEARTBEAT
-
 
 #if DO_IRQ
   /*******************
    *** Process IRQ ***
    *******************/
-  void ProcessIrq() {
-    uint8_t  i_pin;
+  void ProcessIrq() {    
     uint16_t i_port;    
     uint8_t intstate;
 
     // Print Value
     if (irqFlag) {
-      Serial.println("Interrupt!");
-      // Print INTCAP-Register
-      i_pin = mcp[0].readRegister(MCP23017_INTCAPA);
-      Serial.print("  - INTCAPA: ");
-      Serial.println(i_pin);
-      i_pin = mcp[0].readRegister(MCP23017_INTCAPB);
-      Serial.print("  - INTCAPB: ");
-      Serial.println(i_pin);
       // Print Portstate      
-      i_port = mcp[0].readGPIOAB();  // Read Port A + B    
-      Serial.print("  - ");
-      printStateAB(i_port);
-      Serial.println("-------------------------------------");
+      Serial.print(F("I"));
+      printStateAB(mcp[0].readGPIOAB());
       irqFlag = false;    
     } 
 
@@ -321,7 +330,7 @@ void printStateAB(uint16_t s) {
     intstate = digitalRead(INT_PIN);
     if (laststate != intstate) {
       laststate = intstate;
-      Serial.print("INT: ");
+      Serial.print(F("I: "));
       Serial.println(laststate);      
     } 
 
@@ -334,36 +343,20 @@ void printStateAB(uint16_t s) {
           // clearInterrupts    
           intstate = mcp[0].readRegister(MCP23017_INTCAPA);
           intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
-          Serial.println("Reset IRQ");                   
+          Serial.println(F("I: Reset IRQ"));
         } 
       }
     }
   } 
+#else 
+  void ProcessIrq() {}  
 #endif // DO_IRQ
 
 /***********
  Main Loop
  ***********/
 void loop(){ 
-  uint8_t  v16;
-  uint8_t  v8;  
-
-  #if DO_SPEED
   SpeedTest();
-  #endif  
-  
-  #if DO_HEARTBEAT
-    ReadInputs();
-  #endif  
-
-  #if DO_IRQ  
-    ProcessIrq();
-  #endif  
-
-
-  // to surpress "unused Variable" warnings
-  v16 = 0;
-  v8 = 15;
-  v16 = v8++;
-  v8 = (v16 | 0xff);
+  ReadInputs();
+  ProcessIrq();
 } 

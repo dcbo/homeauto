@@ -22,7 +22,7 @@
 /************************************************************
  * Defines
  ************************************************************/ 
-#define I2CSPEED         800000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
+#define I2CSPEED         300000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
 #define INT_PIN               2  // Interupt Pin
 
 // Constants
@@ -122,9 +122,9 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
   mcp.writeRegister(MCP23017_IPOLB, 0xff);   
   #if DO_IRQ
     // no Mirror, Open-Drain, LOW-active
-    Serial.println(F("    - IRQ: no Mirror, Open-Drain, LOW-active"));
+    Serial.println(F("    - IRQ: Mirror, Open-Drain, LOW-active"));
     delay(100);
-    mcp.setupInterrupts(0, 1, 0);          
+    mcp.setupInterrupts(1, 1, 0);          
     // Interrupt Mode: on-default / on-change
     Serial.println(F("    - IRQ Mode: Change"));
     delay(100);
@@ -139,7 +139,7 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
     Serial.println(F("    - Enable Interrupts"));    
     delay(100);
     mcp.writeRegister(MCP23017_GPINTENA, 0xff); // 1: Enable 
-    mcp.writeRegister(MCP23017_GPINTENB, 0x00); // 0: Disable    
+    mcp.writeRegister(MCP23017_GPINTENB, 0xff); // 0: Disable    
     // clearInterrupts
     Serial.println(F("    - clearInterrupts"));
     delay(100);
@@ -166,6 +166,7 @@ void setup() {
   // MCP23017
   Serial.println(F("- MCP23017 #1"));
   setupInputMcp(mcp[0], 0);
+  setupInputMcp(mcp[1], 1);
 
   // Arduino IRQ
   #if DO_IRQ    
@@ -183,7 +184,7 @@ void setup() {
   delay(100);
   Wire.setClock(I2CSPEED);
   Serial.println(F(" done."));
-  delay(500);
+  delay(100);
  
   // Global vars
   Serial.print(F("- Global Vars ... "));
@@ -193,12 +194,12 @@ void setup() {
   lastPrint = millis();
   irqFlag = false;
   Serial.println(F("done."));
-  delay(500);
+  delay(100);
 
   // init finished
   Serial.println(F("Init complete, starting Main-Loop"));
   Serial.println(F("#################################"));
-  delay(1000);
+  delay(100);
 }
 
 
@@ -290,8 +291,10 @@ void printStateAB(uint16_t s) {
   void ReadInputs() {  
     if (millis() - lastPrint > HEARTBEAT) {    
       lastPrint = millis();
-      Serial.print(F("H"));
-      printStateAB(mcp[0].readGPIOAB());
+      Serial.print(F("H-0"));
+      printStateAB(mcp[0].readGPIOAB());      
+      Serial.print(F("H-1"));
+      printStateAB(mcp[1].readGPIOAB());      
     } 
   } 
 #else 
@@ -309,16 +312,19 @@ void printStateAB(uint16_t s) {
     // Print Value
     if (irqFlag) {
       // Print Portstate      
-      Serial.print(F("I"));
-      printStateAB(mcp[0].readGPIOAB());
+      Serial.print(F("I-0"));
+      printStateAB(mcp[0].readGPIOAB());      
+      Serial.print(F("I-1"));
+      printStateAB(mcp[1].readGPIOAB());      
       irqFlag = false;    
     } 
+    delay(100);
 
     // Arduino IRQ-Pin changed        
     intstate = digitalRead(INT_PIN);
     if (laststate != intstate) {
       laststate = intstate;
-      Serial.print(F("I: "));
+      Serial.print(F("Int: "));
       Serial.println(laststate);      
     } 
 
@@ -331,7 +337,16 @@ void printStateAB(uint16_t s) {
           // clearInterrupts    
           intstate = mcp[0].readRegister(MCP23017_INTCAPA);
           intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
-          Serial.println(F("I: Reset IRQ"));
+          Serial.println(F("I-0: Reset IRQ"));
+          delay(100);
+        } 
+        i_port = mcp[1].readGPIOAB();  // Read Port A + B    
+        if (i_port == 0) {
+          // clearInterrupts    
+          intstate = mcp[1].readRegister(MCP23017_INTCAPA);
+          intstate = mcp[1].readRegister(MCP23017_INTCAPB);      
+          Serial.println(F("I-1: Reset IRQ"));
+          delay(100);
         } 
       }
     }

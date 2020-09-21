@@ -257,22 +257,22 @@ void setup() {
     DBG_STATE.println(F("]"));
   }
 
-  void printStateABCD(uint32_t s) {
-    uint8_t i;    
+  void printStateABCD(uint32_t v) {
+    uint8_t i;        
     // Print Bits  
-    for (i=0; i<32; i++) {
-      if ((s & (1<<i)) == 0) {
-        DBG_STATE.print(F("-"));
+    for (i=0; i<32; i++) {      
+      if ((v & (1L<<i)) == 0) {
+        DBG_STATE.print(F("-"));        
       } else {
         DBG_STATE.print(F("1"));
       }
-      if (i==7) {
+      if (i%8==7) {
         DBG_STATE.print(F(" "));
       }
     }  
     DBG_STATE.print(F(" [0x"));
     // Print Value 
-    DBG_STATE.print(s,HEX);
+    DBG_STATE.print(v,HEX);
     DBG_STATE.println(F("]"));
   }
 #else
@@ -335,37 +335,6 @@ void setup() {
 #else 
   void SpeedTest() {}  
 #endif  // DO_SPEED
-
-
-
-  // Reset IRQ State 
-  /**
-    if (!intstate){      
-      if (millis() - g_lastReset > IRQ_RESETINTERVAL) {
-        g_lastReset = millis();
-        i_port = mcp[0].readGPIOAB();  // Read Port A + B    
-        if (i_port == 0) {
-          // clearInterrupts    
-          intstate = mcp[0].readRegister(MCP23017_INTCAPA);
-          intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
-          #if DEBUG_IRQ   
-            DBG_IRQ.println(F("I-0: Reset IRQ"));                  
-          #endif // DEBUG_IRQ             
-        } 
-        i_port = mcp[1].readGPIOAB();  // Read Port A + B    
-        if (i_port == 0) {
-          // clearInterrupts    
-          intstate = mcp[1].readRegister(MCP23017_INTCAPA);
-          intstate = mcp[1].readRegister(MCP23017_INTCAPB);
-          #if DEBUG_IRQ
-            DBG_IRQ.println(F("I-1: Reset IRQ"));
-          #endif // DEBUG_IRQ
-        } 
-      }
-    }
-*/
-
-
 
 
 #if DO_HEARTBEAT
@@ -474,13 +443,13 @@ void ScanButtons(void) {
   }
   
   if (doscan) {     
-    // Read all GPIO Registers    
-    thisstate = mcp[0].readGPIOAB() + (mcp[0].readGPIOAB() * 0xffff);      
-    
+    // Read all GPIO Registers        
+    thisstate = (uint32_t)mcp[0].readGPIOAB() + ((uint32_t)mcp[1].readGPIOAB() << 16);
+        
     // State changed?
     if (thisstate != g_button_scan_laststate) {    
       g_button_scan_laststate = thisstate;
-      DBG_STATE_CHANGE.print(F("SC:"));
+      DBG_STATE_CHANGE.print(F("Scan: "));
       printStateABCD(thisstate);
     }
 
@@ -504,8 +473,8 @@ void ScanButtons(void) {
  ************************************************************/
 void loop(){ 
   ScanButtons();
-  SpeedTest();
-  ReadInputs();
-  ProcessIrq();
+  //SpeedTest();
+  //ReadInputs();
+  //ProcessIrq();
   
 } 

@@ -22,13 +22,14 @@
 /************************************************************
  * Defines
  ************************************************************/ 
-#define I2CSPEED         300000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
+#define I2CSPEED         800000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
 #define INT_PIN               2  // Interupt Pin
 
 // Constants
 #define BUTTON_T0            20  // <T0= No Klick (Noise)  20ms (T0-1)*10ms (max   30ms)
 #define BUTTON_T1          1000  // >T1= Long Klick       950ms (T1-1)*10ms (max 1000ms)
 #define BUTTON_T2           200  // <T2= Double Klick     190ms (T2-1)*10ms (max  200ms)
+#define BUTTON_SCANTIME     100  // Stop Buttonaction
 
 // Scenes
 #define SCENE_ALL_OFF         0  // Turn everything OFF
@@ -58,6 +59,15 @@
 #define ROLL_CLICK            5
 #define ROLL_TICK             6
 
+// Debugging Config
+#define DEBUG                 1  // Debug main 
+#define DEBUG_SETUP           1  // Debug Setup 
+#define DEBUG_SETUP_MCP       1  // Debug Setup MCP
+#define DEBUG_IRQ             1  // Debug IRQ
+#define DEBUG_HEARTBEAT       1  // Debug Heartbeat
+#define DEBUG_STATE_CHANGE    1  // Debug The Change of States
+#define DEBUG_SETUP_DELAY     50 // Debug Delay during setup
+
 
 /************************************************************
  * Program Configuration Control
@@ -68,18 +78,34 @@
   #define SPEEDRUNS     10000
   #define SPEEDUSDIVISOR (SPEEDRUNS / 1000)
   #define SPEEDBEAT     1000
-#define DO_IRQ        1
-  #define RESETINTERVAL 100
+  #define IRQ_RESETINTERVAL 100
+
+
+/************************************************************
+ * Debugging Macros use Macro "DBG...." instead of "Serial"
+ ************************************************************/ 
+#define DEBUG_STATE       (DEBUG_HEARTBEAT || DEBUG_IRQ || DEBUG_STATE_CHANGE)
+#define DBG               if(DEBUG)Serial 
+#define DBG_SETUP         if(DEBUG_SETUP)Serial 
+#define DBG_SETUP_MCP     if(DEBUG_SETUP_MCP)Serial 
+#define DBG_IRQ           if(DEBUG_IRQ)Serial 
+#define DBG_HEARTBEAT     if(DEBUG_HEARTBEAT)Serial 
+#define DBG_STATE         if(DEBUG_STATE)Serial 
+#define DBG_STATE_CHANGE  if(DEBUG_STATE_CHANGE)Serial 
 
 
 /************************************************************
  * Global Vars
  ************************************************************/ 
 volatile bool irqFlag = false;
-uint32_t lastPrint;
-uint32_t lastReset;
-uint8_t  laststate;
-
+uint32_t g_lastPrint;
+uint32_t g_lastReset;
+uint8_t  g_laststate;
+boolean  g_button_scan_active;
+uint32_t g_button_scan_timer;
+uint32_t g_button_last_irq;
+uint32_t g_button_scan_state = 0;       // State of Buttons
+uint32_t g_button_scan_laststate = 0;   // Last State of Buttons
 
 /************************************************************
  * Objects
@@ -100,54 +126,51 @@ void iqrHandler() {
  * Setup one Input-MCP
  ***********************************************************/
 void setupInputMcp(mcp23017& mcp, uint8_t adr) {  
-  Serial.print(F("- MCP23017 #"));
-  Serial.print(adr);
-  Serial.println(F("- [INPUT]"));
-  delay(100);
   mcp.begin(adr, &Wire);  
   // Direction: INPUT
-  Serial.println(F("  - Direction: INPUT"));
-  delay(100);
+  DBG_SETUP_MCP.println(F("  - Direction: INPUT"));
+  delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_IODIRA, 0xff); 
   mcp.writeRegister(MCP23017_IODIRB, 0xff);   
   // Pull-UP: enable 
-  Serial.println(F("  - Pull-UP: enable"));
-  delay(100);
+  DBG_SETUP_MCP.println(F("  - Pull-UP: enable"));
+  delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_GPPUA, 0xff);  
   mcp.writeRegister(MCP23017_GPPUB, 0xff);   
   // Input Polarity: low active = 1
-  Serial.println(F("  - Input Polarity: low active"));
-  delay(100);
+  DBG_SETUP_MCP.println(F("  - Input Polarity: low active"));
+  delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_IPOLA, 0xff);  
   mcp.writeRegister(MCP23017_IPOLB, 0xff);   
-  #if DO_IRQ
-    // no Mirror, Open-Drain, LOW-active
-    Serial.println(F("    - IRQ: Mirror, Open-Drain, LOW-active"));
-    delay(100);
-    mcp.setupInterrupts(1, 1, 0);          
-    // Interrupt Mode: on-default / on-change
-    Serial.println(F("    - IRQ Mode: Change"));
-    delay(100);
-    mcp.writeRegister(MCP23017_INTCONA, 0x00);  // 0x00: Change
-    mcp.writeRegister(MCP23017_INTCONB, 0x00);  // 0xff: Default      
-    // Default Value 
-    Serial.println(F("    - IRQ: Set Default Values"));
-    delay(100);
-    mcp.writeRegister(MCP23017_DEFVALA, 0x00);  // A
-    mcp.writeRegister(MCP23017_DEFVALB, 0x00);  // B    
-    // Interrupt Enable
-    Serial.println(F("    - Enable Interrupts"));    
-    delay(100);
-    mcp.writeRegister(MCP23017_GPINTENA, 0xff); // 1: Enable 
-    mcp.writeRegister(MCP23017_GPINTENB, 0xff); // 0: Disable    
-    // clearInterrupts
-    Serial.println(F("    - clearInterrupts"));
-    delay(100);
-    uint8_t i;
-    i = mcp.readRegister(MCP23017_INTCAPA);
-    i += mcp.readRegister(MCP23017_INTCAPB);        
-  #endif // DO_IRQ 
+  
+  // Setup IRQ
+  // no Mirror, Open-Drain, LOW-active
+  DBG_SETUP_MCP.println(F("    - IRQ: Mirror, Open-Drain, LOW-active"));
+  delay(DEBUG_SETUP_DELAY);
+  mcp.setupInterrupts(1, 1, 0);          
+  // Interrupt Mode: on-default / on-change
+  DBG_SETUP_MCP.println(F("    - IRQ Mode: Change"));
+  delay(DEBUG_SETUP_DELAY);
+  mcp.writeRegister(MCP23017_INTCONA, 0x00);  // 0x00: Change
+  mcp.writeRegister(MCP23017_INTCONB, 0x00);  // 0xff: Default      
+  // Default Value 
+  DBG_SETUP_MCP.println(F("    - IRQ: Set Default Values"));
+  delay(DEBUG_SETUP_DELAY);
+  mcp.writeRegister(MCP23017_DEFVALA, 0x00);  // A
+  mcp.writeRegister(MCP23017_DEFVALB, 0x00);  // B    
+  // Interrupt Enable
+  DBG_SETUP_MCP.println(F("    - Enable Interrupts"));    
+  delay(DEBUG_SETUP_DELAY);
+  mcp.writeRegister(MCP23017_GPINTENA, 0xff); // 1: Enable 
+  mcp.writeRegister(MCP23017_GPINTENB, 0xff); // 0: Disable    
+  // clearInterrupts
+  DBG_SETUP_MCP.println(F("    - clearInterrupts"));
+  delay(DEBUG_SETUP_DELAY);
+  uint8_t i;
+  i = mcp.readRegister(MCP23017_INTCAPA);
+  i += mcp.readRegister(MCP23017_INTCAPB);        
 }
+
 
 
 /************************************************************
@@ -156,50 +179,54 @@ void setupInputMcp(mcp23017& mcp, uint8_t adr) {
 void setup() {        
   // Serial Port
   Serial.begin(115200);  
-  Serial.println(F(""));
-  Serial.println(F("####################################"));
-  Serial.println(F("### Darios Homeautomation v2.0.0 ###"));
-  Serial.println(F("####################################"));
-  Serial.println(F("Init ..."));
-  delay(1000);
+  DBG.println(F(""));
+  DBG.println(F("####################################"));
+  DBG.println(F("### Darios Homeautomation v2.0.0 ###"));
+  DBG.println(F("####################################"));
+  DBG.println(F("Init ..."));
+  delay(DEBUG_SETUP_DELAY);
 
   // MCP23017
-  Serial.println(F("- MCP23017 #1"));
+  DBG_SETUP.println(F("- MCP23017 #0 - [INPUT]"));
   setupInputMcp(mcp[0], 0);
+  DBG_SETUP.println(F("- MCP23017 #1 - [INPUT]"));
   setupInputMcp(mcp[1], 1);
 
-  // Arduino IRQ
-  #if DO_IRQ    
-    Serial.print(F("- Arduino IRQ ..."));
-    pinMode(INT_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(INT_PIN), iqrHandler, FALLING);
-    Serial.println(F(" done."));
-  #endif // DO_IRQ
-  delay(500);
+  // Arduino IRQ  
+  DBG_SETUP.print(F("- Arduino IRQ ..."));
+  pinMode(INT_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(INT_PIN), iqrHandler, FALLING);
+  DBG_SETUP.println(F(" done."));  
+  delay(DEBUG_SETUP_DELAY);
 
   // Set I2C Speed
-  Serial.print(F("- I2C: Set Speed to "));
-  Serial.print(I2CSPEED);
-  Serial.print(F(" ..."));
-  delay(100);
+  DBG_SETUP.print(F("- I2C: Set Speed to "));
+  DBG_SETUP.print(I2CSPEED);
+  DBG_SETUP.print(F(" ..."));
+  delay(DEBUG_SETUP_DELAY);
   Wire.setClock(I2CSPEED);
-  Serial.println(F(" done."));
-  delay(100);
+  DBG_SETUP.println(F(" done."));
+  delay(DEBUG_SETUP_DELAY);
  
   // Global vars
-  Serial.print(F("- Global Vars ... "));
-  delay(100);
-  laststate = 0xff;
-  lastReset = millis();
-  lastPrint = millis();
+  DBG_SETUP.print(F("- Global Vars ... "));
+  delay(DEBUG_SETUP_DELAY);
+  g_laststate = 0xff;
+  g_button_scan_active = false;
+  g_button_scan_timer = millis();
+  g_button_scan_state = 0;
+  g_button_scan_laststate = 0;
+  g_lastReset = millis();
+  g_lastPrint = millis();
+  g_button_last_irq = millis();
   irqFlag = false;
-  Serial.println(F("done."));
-  delay(100);
+  DBG_SETUP.println(F("done."));
+  delay(DEBUG_SETUP_DELAY);
 
   // init finished
-  Serial.println(F("Init complete, starting Main-Loop"));
-  Serial.println(F("#################################"));
-  delay(100);
+  DBG.println(F("Init complete, starting Main-Loop"));
+  DBG.println(F("#################################"));
+  delay(DEBUG_SETUP_DELAY);
 }
 
 
@@ -208,26 +235,51 @@ void setup() {
  ************************************************************
  * - prints: ": -1----11 -1----11 [0x67]"      
  ************************************************************/
-void printStateAB(uint16_t s) {
-  uint8_t i;
-  // Print Label
-  Serial.print(F(": "));
-  // Print Bits  
-  for (i=0; i<16; i++) {
-    if ((s & (1<<i)) == 0) {
-      Serial.print(F("-"));
-    } else {
-      Serial.print(F("1"));
-    }
-    if (i==7) {
-      Serial.print(F(" "));
-    }
-  }  
-  Serial.print(F(" [0x"));
-  // Print Value 
-  Serial.print(s,HEX);
-  Serial.println(F("]"));
-}
+#if DEBUG_STATE
+  void printStateAB(uint16_t s) {
+    uint8_t i;
+    // Print Label
+    DBG_STATE.print(F(": "));
+    // Print Bits  
+    for (i=0; i<16; i++) {
+      if ((s & (1<<i)) == 0) {
+        DBG_STATE.print(F("-"));
+      } else {
+        DBG_STATE.print(F("1"));
+      }
+      if (i==7) {
+        DBG_STATE.print(F(" "));
+      }
+    }  
+    DBG_STATE.print(F(" [0x"));
+    // Print Value 
+    DBG_STATE.print(s,HEX);
+    DBG_STATE.println(F("]"));
+  }
+
+  void printStateABCD(uint32_t s) {
+    uint8_t i;    
+    // Print Bits  
+    for (i=0; i<32; i++) {
+      if ((s & (1<<i)) == 0) {
+        DBG_STATE.print(F("-"));
+      } else {
+        DBG_STATE.print(F("1"));
+      }
+      if (i==7) {
+        DBG_STATE.print(F(" "));
+      }
+    }  
+    DBG_STATE.print(F(" [0x"));
+    // Print Value 
+    DBG_STATE.print(s,HEX);
+    DBG_STATE.println(F("]"));
+  }
+#else
+  void printStateAB(uint16_t s) {};
+  void printStateABCD(uint32_t s) {};
+#endif  // DEBUG_STATE
+
 
 #if DO_SPEED
   /************************************************************
@@ -284,82 +336,176 @@ void printStateAB(uint16_t s) {
   void SpeedTest() {}  
 #endif  // DO_SPEED
 
+
+
+  // Reset IRQ State 
+  /**
+    if (!intstate){      
+      if (millis() - g_lastReset > IRQ_RESETINTERVAL) {
+        g_lastReset = millis();
+        i_port = mcp[0].readGPIOAB();  // Read Port A + B    
+        if (i_port == 0) {
+          // clearInterrupts    
+          intstate = mcp[0].readRegister(MCP23017_INTCAPA);
+          intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
+          #if DEBUG_IRQ   
+            DBG_IRQ.println(F("I-0: Reset IRQ"));                  
+          #endif // DEBUG_IRQ             
+        } 
+        i_port = mcp[1].readGPIOAB();  // Read Port A + B    
+        if (i_port == 0) {
+          // clearInterrupts    
+          intstate = mcp[1].readRegister(MCP23017_INTCAPA);
+          intstate = mcp[1].readRegister(MCP23017_INTCAPB);
+          #if DEBUG_IRQ
+            DBG_IRQ.println(F("I-1: Reset IRQ"));
+          #endif // DEBUG_IRQ
+        } 
+      }
+    }
+*/
+
+
+
+
 #if DO_HEARTBEAT
   /************************************************************
    * Read Inputs
    ************************************************************/  
   void ReadInputs() {  
-    if (millis() - lastPrint > HEARTBEAT) {    
-      lastPrint = millis();
-      Serial.print(F("H-0"));
-      printStateAB(mcp[0].readGPIOAB());      
-      Serial.print(F("H-1"));
-      printStateAB(mcp[1].readGPIOAB());      
+    if (millis() - g_lastPrint > HEARTBEAT) {    
+      g_lastPrint = millis();
+      #if DEBUG_HEARTBEAT        
+        DBG_HEARTBEAT.print(F("H-0"));
+        printStateAB(mcp[0].readGPIOAB());      
+        DBG_HEARTBEAT.print(F("H-1"));
+        printStateAB(mcp[1].readGPIOAB());      
+      #endif // DEBUG_HEARTBEAT
     } 
   } 
 #else 
   void ReadInputs() {}  
 #endif // DO_HEARTBEAT
 
-#if DO_IRQ
-  /************************************************************
-   * Process IRQ 
-   ************************************************************/
-  void ProcessIrq() {    
-    uint16_t i_port;    
-    uint8_t intstate;
+/************************************************************
+ * Process IRQ 
+ ************************************************************/
+void ProcessIrq(void) {    
+  uint16_t i_port;    
+  uint8_t intstate;
 
-    // Print Value
-    if (irqFlag) {
-      // Print Portstate      
-      Serial.print(F("I-0"));
+  // Print Value
+  if (irqFlag) {
+    // Print Portstate      
+    #if DEBUG_IRQ   
+      DBG_IRQ.print(F("I-0"));
       printStateAB(mcp[0].readGPIOAB());      
-      Serial.print(F("I-1"));
+      DBG_IRQ.print(F("I-1"));
       printStateAB(mcp[1].readGPIOAB());      
-      irqFlag = false;    
-    } 
-    delay(100);
-
-    // Arduino IRQ-Pin changed        
-    intstate = digitalRead(INT_PIN);
-    if (laststate != intstate) {
-      laststate = intstate;
-      Serial.print(F("Int: "));
-      Serial.println(laststate);      
-    } 
-
-    // Reset IRQ State if INT=0 (cative)
-    if (!intstate){      
-      if (millis() - lastReset > RESETINTERVAL) {
-        lastReset = millis();
-        i_port = mcp[0].readGPIOAB();  // Read Port A + B    
-        if (i_port == 0) {
-          // clearInterrupts    
-          intstate = mcp[0].readRegister(MCP23017_INTCAPA);
-          intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
-          Serial.println(F("I-0: Reset IRQ"));
-          delay(100);
-        } 
-        i_port = mcp[1].readGPIOAB();  // Read Port A + B    
-        if (i_port == 0) {
-          // clearInterrupts    
-          intstate = mcp[1].readRegister(MCP23017_INTCAPA);
-          intstate = mcp[1].readRegister(MCP23017_INTCAPB);      
-          Serial.println(F("I-1: Reset IRQ"));
-          delay(100);
-        } 
-      }
-    }
+    #endif //  DEBUG_IRQ   
+    irqFlag = false;    
   } 
-#else 
-  void ProcessIrq() {}  
-#endif // DO_IRQ
+  delay(100);
+
+  // Arduino IRQ-Pin changed        
+  intstate = digitalRead(INT_PIN);
+  if (g_laststate != intstate) {
+    g_laststate = intstate;
+    #if DEBUG_IRQ   
+      DBG_IRQ.print(F("Int: "));
+      DBG_IRQ.println(g_laststate);      
+    #endif // DEBUG_IRQ   
+  } 
+
+  // Reset IRQ State if INT=0 (cative)
+  if (!intstate){      
+    if (millis() - g_lastReset > IRQ_RESETINTERVAL) {
+      g_lastReset = millis();
+      i_port = mcp[0].readGPIOAB();  // Read Port A + B    
+      if (i_port == 0) {
+        // clearInterrupts    
+        intstate = mcp[0].readRegister(MCP23017_INTCAPA);
+        intstate = mcp[0].readRegister(MCP23017_INTCAPB);      
+        #if DEBUG_IRQ   
+          DBG_IRQ.println(F("I-0: Reset IRQ"));                  
+        #endif // DEBUG_IRQ             
+      } 
+      i_port = mcp[1].readGPIOAB();  // Read Port A + B    
+      if (i_port == 0) {
+        // clearInterrupts    
+        intstate = mcp[1].readRegister(MCP23017_INTCAPA);
+        intstate = mcp[1].readRegister(MCP23017_INTCAPB);
+        #if DEBUG_IRQ
+          DBG_IRQ.println(F("I-1: Reset IRQ"));
+        #endif // DEBUG_IRQ
+      } 
+    }
+  }
+} 
+
+
+
+/************************************************************
+ * Scan Input Buttons
+ ***********************************************************/
+void ScanButtons(void) {           
+  uint32_t thisstate;  
+  boolean doscan;
+  
+  // Scan only if
+  // - IRQ occured 
+  // TODO - every 10ms after IRQ occured for 5s
+  doscan = false;
+  
+  // IRQ occured 
+  if (irqFlag) {     
+    doscan = true;        
+    irqFlag = false;    
+    g_button_scan_active = true;
+    g_button_last_irq = millis();
+  } 
+  
+  // If scan is still active, scann every BUTTON_SCANTIME [ms]
+  if (g_button_scan_active) {
+    if (millis() - g_button_last_irq > BUTTON_SCANTIME) {
+      doscan = true;        
+      g_button_last_irq = millis();    
+    }
+  }
+  
+  if (doscan) {     
+    // Read all GPIO Registers    
+    thisstate = mcp[0].readGPIOAB() + (mcp[0].readGPIOAB() * 0xffff);      
+    
+    // State changed?
+    if (thisstate != g_button_scan_laststate) {    
+      g_button_scan_laststate = thisstate;
+      DBG_STATE_CHANGE.print(F("SC:"));
+      printStateABCD(thisstate);
+    }
+
+    // If all Inputs = 0 AND All ButtonStates = idle    
+    if (thisstate == 0) {
+      // End Scan 
+      g_button_scan_active = false;
+      // Reset IRQ 
+      DBG_IRQ.println(F("Reseting IRQs"));
+      mcp[0].readRegister(MCP23017_INTCAPA);
+      mcp[0].readRegister(MCP23017_INTCAPB);      
+      mcp[1].readRegister(MCP23017_INTCAPA);
+      mcp[1].readRegister(MCP23017_INTCAPB);
+    }
+  }
+}
+
 
 /************************************************************
  * Main Loop
  ************************************************************/
 void loop(){ 
+  ScanButtons();
   SpeedTest();
   ReadInputs();
   ProcessIrq();
+  
 } 

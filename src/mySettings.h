@@ -1,6 +1,21 @@
+/************************************************************
+ * In this File everything which is related to the 
+ * Funcional Design is defined:
+ * - Name of the Buttons connected to the Input Ports
+ * - Name of the Devices connected to the Output Ports
+ * - Factory Default Settings
+ * - Time Constants for Button State Machine
+ ************************************************************
+ * ToDo-List
+ * - Special Events 
+ *   - Scenes
+ *   - Timers
+ * - Roller Configuration
+ *   - Time Constants for Rollers
+ *   - Port Configuration
+ ************************************************************/ 
 #ifndef _MYSETTINGS_H_
 #define _MYSETTINGS_H_
-
 
 /********************************************************
  * Input (Button) Names
@@ -80,88 +95,6 @@
 #define out_3D4         OUT_28   // Obere Steckdose zwischen 2. und 3. Balkontür
 #define out_8D1         OUT_29   // Linke Steckdose hinter dem Backofen
 
-/********************************************************
- * Roller Action Types
- ********************************************************/
-#define ROLL_STOP             0
-#define ROLL_START_UP         1
-#define ROLL_START_DOWN       2
-#define ROLL_START_OPPOSITE   3
-#define ROLL_START_SAME       4
-#define ROLL_CLICK            5
-#define ROLL_TICK             6
-
-/********************************************************
- * Time Constants for Rollers 
- ********************************************************/
-#define ROLL_num         4       // Number of Rolles
-#define ROLL_R1_maxup    23000   // Time to open [ms]
-#define ROLL_R1_maxdown  23000   // Time to close [ms]
-#define ROLL_R2_maxup    23000   // Time to open [ms]
-#define ROLL_R2_maxdown  23000   // Time to close [ms]
-#define ROLL_R3_maxup    23000   // Time to open [ms]
-#define ROLL_R3_maxdown  23000   // Time to close [ms]
-#define ROLL_R4_maxup    23000   // Time to open [ms]
-#define ROLL_R4_maxdown  23000   // Time to close [ms]
-
-/********************************************************
- * Time Constants for Button State Machine
- ********************************************************/
-#define BUTTON_T0            20  // <T0= No Klick (Noise)  20ms (T0-1)*10ms (max   30ms)
-#define BUTTON_T1          1000  // >T1= Long Klick       950ms (T1-1)*10ms (max 1000ms)
-#define BUTTON_T2           200  // <T2= Double Klick     190ms (T2-1)*10ms (max  200ms)
-#define BUTTON_SCANINT       10  // [ms] Scan interval after IRQ occured
-#define BUTTON_SCANTIME    1000  // [ms] Stop scanning every BUTTON_SCANINT after this time 
-
-
-
-/********************************************************
- * Scenes
- ********************************************************/
-#define SCENE_ALL_OFF         0  // Turn everything OFF
-#define SCENE_ALL_ON          1  // Turn everything ON
-#define SCENE_LEAVING         2  // Leaving the House
-#define SCENE_BED             3  // Scene Bett: alles aus bis auf Balkonlicht
-#define SCENE_BED_delay       4  // Scene Bett Delay: alles aus bis auf Balkonlicht, Schlafzimmer 30s an
-
-/********************************************************
- * Timers
- ********************************************************/
-#define MAX_TIMER             4
-#define tm_1_time             0
-#define tm_1_event
-#define tm_2_time             0
-#define tm_2_event
-#define tm_3_time             0
-#define tm_3_event
-#define tm_4_time             0
-#define tm_4_event
-
-/********************************************************
- * Event Types
- ********************************************************/
-#define EVENT_SPECIAL         0   // followed Special Event ID
-#define EVENT_ON              1   // followed by Output which has to be toggled
-#define EVENT_OFF             2   // followed by Output which has to be toggled
-#define EVENT_TOGGLE          3   // followed by Output which has to be toggled
-
-
-/********************************************************
- * Button Click Types
- ********************************************************/
-#define BUTTON_CLICK          0
-#define BUTTON_CLICK_DOUBLE   1
-#define BUTTON_CLICK_LONG     2
-
-
-/********************************************************
- * EEPROM OFFSETS (see Events)
- ********************************************************/
-#define EEPROM_OFFSET_CLICK          0
-#define EEPROM_OFFSET_CLICK_DOUBLE   EEPROM_OFFSET_CLICK + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_CLICK_LONG     EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_CLICK_LONG_END EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_FIRST_FREE     EEPROM_OFFSET_CLICK_LONG_END
 
 
 /********************************************************
@@ -205,15 +138,15 @@
  ********************************************************/
 
 // BUTTON_CLICK - Events
-static const uint8_t FactoryDefaultClickTable[][3] PROGMEM = {    
-    {1, EVENT_ON, 5} ,
-    {2, EVENT_ON, 31} ,
-    {3, EVENT_ON, 31} ,
-    {31, EVENT_SPECIAL, 63} ,
+static const uint8_t FactoryDefaultClickTable[][3] PROGMEM = {        
     {in_S1, EVENT_TOGGLE, out_L1} ,  //  S1 -> TOGGLE L1
     {in_S2, EVENT_TOGGLE, out_L2} ,  //  S2 -> TOGGLE L2
     {in_S3, EVENT_TOGGLE, out_L3} ,  //  S3 -> TOGGLE L3
-    {in_S4, EVENT_TOGGLE, out_L5}    //  S4 -> TOGGLE L5
+    {in_S4, EVENT_TOGGLE, out_L5} ,  //  S4 -> TOGGLE L5
+    {1, EVENT_ON, 5} ,               //  FOR TESTING ONLY
+    {2, EVENT_ON, 31} ,              //  FOR TESTING ONLY 
+    {3, EVENT_ON, 31} ,              //  FOR TESTING ONLY 
+    {31, EVENT_SPECIAL, 63}          //  FOR TESTING ONLY 
 };
 
 // BUTTON_DOUBLE_CLICK - Events
@@ -233,6 +166,84 @@ static const uint8_t FactoryDefaultLongClickTable[][3] PROGMEM = {
 };
 
 
+
+/********************************************************
+ * Time Constants for Button State Machine
+ ********************************************************/
+#define BUTTON_T0            20  // <T0= No Klick (Noise)  20ms (T0-1)*10ms (max   30ms)
+#define BUTTON_T1          1000  // >T1= Long Klick       950ms (T1-1)*10ms (max 1000ms)
+#define BUTTON_T2           200  // <T2= Double Klick     190ms (T2-1)*10ms (max  200ms)
+#define BUTTON_SCANINT       10  // [ms] Scan interval after IRQ occured
+#define BUTTON_SCANTIME    1000  // [ms] Stop scanning every BUTTON_SCANINT after this time 
+
+
+/********************************************************
+ * Time Constants for Rollers 
+ ********************************************************/
+#define ROLL_num         4       // Number of Rolles
+#define ROLL_R1_maxup    23000   // Time to open [ms]
+#define ROLL_R1_maxdown  23000   // Time to close [ms]
+#define ROLL_R2_maxup    23000   // Time to open [ms]
+#define ROLL_R2_maxdown  23000   // Time to close [ms]
+#define ROLL_R3_maxup    23000   // Time to open [ms]
+#define ROLL_R3_maxdown  23000   // Time to close [ms]
+#define ROLL_R4_maxup    23000   // Time to open [ms]
+#define ROLL_R4_maxdown  23000   // Time to close [ms]
+
+
+/********************************************************
+ * Scenes
+ ********************************************************/
+#define SCENE_ALL_OFF         0  // Turn everything OFF
+#define SCENE_ALL_ON          1  // Turn everything ON
+#define SCENE_LEAVING         2  // Leaving the House
+#define SCENE_BED             3  // Scene Bett: alles aus bis auf Balkonlicht
+#define SCENE_BED_delay       4  // Scene Bett Delay: alles aus bis auf Balkonlicht, Schlafzimmer 30s an
+
+
+/********************************************************
+ * Timers
+ ********************************************************/
+#define MAX_TIMER             4
+#define tm_1_time             0
+#define tm_1_event
+#define tm_2_time             0
+#define tm_2_event
+#define tm_3_time             0
+#define tm_3_event
+#define tm_4_time             0
+#define tm_4_event
+
+
+
+
+
+/********************************************************
+ * Button Click Types
+ ********************************************************/
+#define BUTTON_CLICK          0
+#define BUTTON_CLICK_DOUBLE   1
+#define BUTTON_CLICK_LONG     2
+
+/********************************************************
+ * Event Types
+ ********************************************************/
+#define EVENT_SPECIAL         0   // followed Special Event ID
+#define EVENT_ON              1   // followed by Output which has to be toggled
+#define EVENT_OFF             2   // followed by Output which has to be toggled
+#define EVENT_TOGGLE          3   // followed by Output which has to be toggled
+
+
+/********************************************************
+ * Roller Action Types
+ ********************************************************/
+#define ROLL_STOP             0
+#define ROLL_START_UP         1
+#define ROLL_START_DOWN       2
+#define ROLL_START_OPPOSITE   3
+#define ROLL_START_SAME       4
+#define ROLL_CLICK            5
+#define ROLL_TICK             6
 
 
 #endif  // _MYSETTINGS_H_

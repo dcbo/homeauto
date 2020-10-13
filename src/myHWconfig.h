@@ -1,4 +1,16 @@
 /************************************************************
+ * In this File everything which is related to the 
+ * Hardware Design is defined:
+ * - Number of MCP-Chips
+ * - EEPROM Offsets
+ * - Mappings of MCP-Ports to Terminals 
+ * - Speed of I2C Bus
+ * - MCP23017 Interupt Pin to Arduino Pin (only Input MCPs)
+ * - MCP23017 Reset Pin to Arduino Pin
+ ************************************************************/ 
+
+
+/************************************************************
  * Number of MCP Chips
  * - Input Chips must coded with the lower I2C-Adress starting from 0
  ************************************************************/ 
@@ -7,6 +19,16 @@
 #define MCP_IN_PINS           MCP_IN_NUM*16              // # of Input Pins
 #define MCP_OUT_PINS          MCP_OUT_NUM*16             // # of Output Pins
 #define MCP_NUM               MCP_IN_NUM + MCP_OUT_NUM   // # of total MCP Chips
+
+
+/********************************************************
+ * EEPROM OFFSETS (see Events)
+ ********************************************************/
+#define EEPROM_OFFSET_CLICK          0
+#define EEPROM_OFFSET_CLICK_DOUBLE   EEPROM_OFFSET_CLICK + (MCP_IN_NUM * 16)
+#define EEPROM_OFFSET_CLICK_LONG     EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+#define EEPROM_OFFSET_CLICK_LONG_END EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+#define EEPROM_OFFSET_FIRST_FREE     EEPROM_OFFSET_CLICK_LONG_END
 
 
 /********************************************************

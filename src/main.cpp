@@ -4,70 +4,33 @@
  * Hardware:
  * - Arduino Nano
  * - 4 x I2C I/O-Expander MCP 23017
- *   - 2 x MCP 23017 as Intput (16 Bit)
- *     - 32 Buttons (common GND)
- *   - 2 x MCP 23017 as Output (16 Bit)
- *     -  4 Rollers (each 2 Outputs: on, dir)
- *     - 24 Devices (lights, power outlets)
+ *   - 0x20 Input (16 Bit)
+ *   - 0x21 Input (16 Bit)
+ *   - 0x22 Output (16 Bit)
+ *   - 0x23 Output (16 Bit)
  ************************************************************/
 
 /************************************************************
  * Includes
  ************************************************************/ 
 #include <Arduino.h>
+#include <EEPROM.h>
 #include <Wire.h>
 #include <mcp23017_DC.h>
-
-
-/************************************************************
- * Defines
- ************************************************************/ 
-#define I2CSPEED         800000  // 800kHz -> 127us to read all 16 GPIOs from one MCP23017
-#define INT_PIN               2  // Interupt Pin
-
-// Constants
-#define BUTTON_T0            20  // <T0= No Klick (Noise)  20ms (T0-1)*10ms (max   30ms)
-#define BUTTON_T1          1000  // >T1= Long Klick       950ms (T1-1)*10ms (max 1000ms)
-#define BUTTON_T2           200  // <T2= Double Klick     190ms (T2-1)*10ms (max  200ms)
-#define BUTTON_SCANTIME     100  // Stop Buttonaction
-
-// Scenes
-#define SCENE_ALL_OFF         0  // Turn everything OFF
-#define SCENE_ALL_ON          1  // Turn everything ON
-#define SCENE_LEAVING         2  // Leaving the House
-#define SCENE_BED             3  // Scene Bett: alles aus bis auf Balkonlicht
-#define SCENE_BED_delay       4  // Scene Bett Delay: alles aus bis auf Balkonlicht, Schlafzimmer 30s an
-
-// Timer
-#define MAX_TIMER             8
-#define tm_2L1_off            0
-#define tm_ROL01_stop         1
-#define tm_ROL23_stop         2
-#define tm_L5_off             3
-
-// Button Event Types
-#define EVENT_CLICK           0
-#define EVENT_CLICK_DOUBLE    1
-#define EVENT_CLICK_LONG      2
-
-// Roller Action Types
-#define ROLL_STOP             0
-#define ROLL_START_UP         1
-#define ROLL_START_DOWN       2
-#define ROLL_START_OPPOSITE   3
-#define ROLL_START_SAME       4
-#define ROLL_CLICK            5
-#define ROLL_TICK             6
+#include <myHWconfig.h>
+#include <mySettings.h>
 
 // Debugging Config
 #define DEBUG                 1  // Debug main 
+#define DEBUG_ERROR           1  // Error Messages
+#define DEBUG_EEPROM_INIT     1  // Debug EEPROM Init
 #define DEBUG_SETUP           1  // Debug Setup 
 #define DEBUG_SETUP_MCP       1  // Debug Setup MCP
 #define DEBUG_IRQ             1  // Debug IRQ
 #define DEBUG_HEARTBEAT       1  // Debug Heartbeat
+#define DEBUG_OUTPUT          1  // Debug Output
 #define DEBUG_STATE_CHANGE    1  // Debug The Change of States
 #define DEBUG_SETUP_DELAY     50 // Debug Delay during setup
-
 
 /************************************************************
  * Program Configuration Control
@@ -80,16 +43,18 @@
   #define SPEEDBEAT     1000
   #define IRQ_RESETINTERVAL 100
 
-
 /************************************************************
  * Debugging Macros use Macro "DBG...." instead of "Serial"
  ************************************************************/ 
 #define DEBUG_STATE       (DEBUG_HEARTBEAT || DEBUG_IRQ || DEBUG_STATE_CHANGE)
 #define DBG               if(DEBUG)Serial 
+#define DBG_ERROR         if(DEBUG_ERROR)Serial 
+#define DBG_EEPROM_INIT   if(DEBUG_EEPROM_INIT)Serial 
 #define DBG_SETUP         if(DEBUG_SETUP)Serial 
 #define DBG_SETUP_MCP     if(DEBUG_SETUP_MCP)Serial 
 #define DBG_IRQ           if(DEBUG_IRQ)Serial 
 #define DBG_HEARTBEAT     if(DEBUG_HEARTBEAT)Serial 
+#define DBG_OUTPUT        if(DEBUG_OUTPUT)Serial 
 #define DBG_STATE         if(DEBUG_STATE)Serial 
 #define DBG_STATE_CHANGE  if(DEBUG_STATE_CHANGE)Serial 
 
@@ -97,86 +62,138 @@
 /************************************************************
  * Global Vars
  ************************************************************/ 
-volatile bool irqFlag = false;
-uint32_t g_lastPrint;
-uint32_t g_lastReset;
-uint8_t  g_laststate;
-boolean  g_button_scan_active;
-uint32_t g_button_scan_timer;
-uint32_t g_button_last_irq;
-uint32_t g_button_scan_state = 0;       // State of Buttons
-uint32_t g_button_scan_laststate = 0;   // Last State of Buttons
+volatile bool g_irqFlag = false;
+boolean  g_buttonPollingActive;   //! Polling of Buttons every 10ms active
+uint32_t g_lastButtonState;       //! Last State of Buttons
+uint32_t g_lastButtonIrqTime;     //! Time when last IRQ was handled 
+uint32_t g_lastButtonScanTime;    //! Last Time when Buttons (Inputs) habe been read
+uint8_t  g_lastIntState;          //! Last State of INT0 Pin
+uint32_t g_lastOutState;          //! Last State of Output Ports 
+uint32_t g_lastOutTime;           //! last Time when Output Ports have ben set
+
+uint32_t g_lastPrintTime;         // Used by Heartbeat
+uint32_t g_lastResetTime;         // Used by ProcessIrq
 
 /************************************************************
  * Objects
  ************************************************************/ 
 // 4 MCP-Chips 
-mcp23017 mcp[4];
+mcp23017 mcp[MCP_NUM];
 
 
 /************************************************************
  * IRQ Handler
  ***********************************************************/
 void iqrHandler() {
-    irqFlag = true;
+    g_irqFlag = true;
 }
 
-
 /************************************************************
- * Setup one Input-MCP
+ * Begin MCP
+ * - initialize MCP-Object
+ * - check if MCP is present
+ * @param mcp Object to be generated
+ * @param adr Adress (0-7) of MCP
+ ************************************************************/
+void beginMcp(mcp23017& mcp, uint8_t adr) {  
+  uint8_t ret;
+  DBG_SETUP_MCP.print(F("  - Begin: "));
+  ret = mcp.begin(adr, &Wire);  
+  DBG_SETUP_MCP.print(ret);
+  if (ret != 0){
+    DBG_SETUP_MCP.println(F(" - ERROR"));
+    DBG_ERROR.print(F("ERROR: MCP23017 #"));
+    DBG_ERROR.print(adr);
+    DBG_ERROR.print(F(" not responding (Error: "));
+    DBG_ERROR.print(ret);
+    DBG_ERROR.println(F(")"));
+  } else {
+    DBG_SETUP_MCP.println(F(" - OK"));
+  }
+}
+  
+/************************************************************
+ * Setup Input-MCP
+ * - Input
+ * @param mcp Object to be generated
+ * @param adr Adress (0-7) of MCP
+ *     uint8_t adr:   0  |   1  |   2  |   3  |   4  |   5  |   6  |   7  |
+ *         I2C-adr: 0x20 | 0x21 | 0x22 | 0x23 | 0x24 | 0x25 | 0x26 | 0x27 | 
+ *********************************************************** 
+ * - Set Direction of all Pins to INPUT 
+ * - Enable Pull-UP for all Pins
+ * - Set Input Polarity to low active (GND=1)
+ * - IRQ-Settings: Mirror, Open-Drain, LOW-active
+ * - IRQ-Mode: on-change
+ * - IRQ-Default-Value: 0x00
+ * - Enable-Interrupt 
+ * - clearInterrupts
  ***********************************************************/
-void setupInputMcp(mcp23017& mcp, uint8_t adr) {  
-  mcp.begin(adr, &Wire);  
-  // Direction: INPUT
+void setupInputMcp(mcp23017& mcp, uint8_t adr) {    
+  beginMcp(mcp,adr);  
   DBG_SETUP_MCP.println(F("  - Direction: INPUT"));
   delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_IODIRA, 0xff); 
-  mcp.writeRegister(MCP23017_IODIRB, 0xff);   
-  // Pull-UP: enable 
+  mcp.writeRegister(MCP23017_IODIRB, 0xff);     
   DBG_SETUP_MCP.println(F("  - Pull-UP: enable"));
   delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_GPPUA, 0xff);  
-  mcp.writeRegister(MCP23017_GPPUB, 0xff);   
-  // Input Polarity: low active = 1
+  mcp.writeRegister(MCP23017_GPPUB, 0xff);     
   DBG_SETUP_MCP.println(F("  - Input Polarity: low active"));
   delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_IPOLA, 0xff);  
-  mcp.writeRegister(MCP23017_IPOLB, 0xff);   
-  
-  // Setup IRQ
-  // no Mirror, Open-Drain, LOW-active
-  DBG_SETUP_MCP.println(F("    - IRQ: Mirror, Open-Drain, LOW-active"));
+  mcp.writeRegister(MCP23017_IPOLB, 0xff);     
+  DBG_SETUP_MCP.println(F("  - IRQ: Mirror, Open-Drain, LOW-active"));
   delay(DEBUG_SETUP_DELAY);
-  mcp.setupInterrupts(1, 1, 0);          
-  // Interrupt Mode: on-default / on-change
-  DBG_SETUP_MCP.println(F("    - IRQ Mode: Change"));
+  mcp.setupInterrupts(1, 1, 0);            
+  DBG_SETUP_MCP.println(F("  - IRQ Mode: Change"));
   delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_INTCONA, 0x00);  // 0x00: Change
-  mcp.writeRegister(MCP23017_INTCONB, 0x00);  // 0xff: Default      
-  // Default Value 
-  DBG_SETUP_MCP.println(F("    - IRQ: Set Default Values"));
+  mcp.writeRegister(MCP23017_INTCONB, 0x00);  // 0xff: Default        
+  DBG_SETUP_MCP.println(F("  - IRQ: Set Default Values"));
   delay(DEBUG_SETUP_DELAY);
-  mcp.writeRegister(MCP23017_DEFVALA, 0x00);  // A
-  mcp.writeRegister(MCP23017_DEFVALB, 0x00);  // B    
-  // Interrupt Enable
-  DBG_SETUP_MCP.println(F("    - Enable Interrupts"));    
+  mcp.writeRegister(MCP23017_DEFVALA, 0x00);  
+  mcp.writeRegister(MCP23017_DEFVALB, 0x00);    
+  DBG_SETUP_MCP.println(F("  - Enable Interrupts"));    
   delay(DEBUG_SETUP_DELAY);
   mcp.writeRegister(MCP23017_GPINTENA, 0xff); // 1: Enable 
   mcp.writeRegister(MCP23017_GPINTENB, 0xff); // 0: Disable    
   // clearInterrupts
   DBG_SETUP_MCP.println(F("    - clearInterrupts"));
   delay(DEBUG_SETUP_DELAY);
-  uint8_t i;
-  i = mcp.readRegister(MCP23017_INTCAPA);
-  i += mcp.readRegister(MCP23017_INTCAPB);        
+  // uint8_t i;  
+  // i = mcp.readRegister(MCP23017_INTCAPA);
+  // i += mcp.readRegister(MCP23017_INTCAPB);        
+  mcp.readRegister(MCP23017_INTCAPA);
+  mcp.readRegister(MCP23017_INTCAPB);        
 }
 
+/************************************************************
+ * Setup Output-MCP
+ * @param mcp Object to be generated
+ * @param adr Adress (0-7) of MCP
+ *********************************************************** 
+ * - Set Direction of all Pins to Output
+ * - Set all Pins to 0=GND 
+ ***********************************************************/
+void setupOutputMcp(mcp23017& mcp, uint8_t adr) {  
+  beginMcp(mcp,adr);
+  DBG_SETUP_MCP.println(F("  - Direction: OUTPUT"));
+  delay(DEBUG_SETUP_DELAY);
+  mcp.writeRegister(MCP23017_IODIRA, 0x00); 
+  mcp.writeRegister(MCP23017_IODIRB, 0x00);     
+  DBG_SETUP_MCP.println(F("  - Set all Pins to GND"));
+  delay(DEBUG_SETUP_DELAY);
+  mcp.writeGPIOAB(0x0000);  
+}
 
 
 /************************************************************
  * Setup 
  ************************************************************/
 void setup() {        
+  uint8_t i;
+  uint8_t n;
   // Serial Port
   Serial.begin(115200);  
   DBG.println(F(""));
@@ -186,12 +203,36 @@ void setup() {
   DBG.println(F("Init ..."));
   delay(DEBUG_SETUP_DELAY);
 
-  // MCP23017
-  DBG_SETUP.println(F("- MCP23017 #0 - [INPUT]"));
-  setupInputMcp(mcp[0], 0);
-  DBG_SETUP.println(F("- MCP23017 #1 - [INPUT]"));
-  setupInputMcp(mcp[1], 1);
+  // Reset all MCP23017a
+  DBG_SETUP.print(F("- Resetting all MCP23017s ... "));
+  pinMode(MCP_RST_PIN, OUTPUT); 
+  digitalWrite(MCP_RST_PIN,LOW);
+  delay(100);
+  digitalWrite(MCP_RST_PIN,HIGH);
+  DBG_SETUP.println(F("done."));
+  
+  // Setup Input MCP23017s
+  n=0;
+  if (MCP_IN_NUM > 0) {
+    for (i=0; i<MCP_IN_NUM; i++) {
+      DBG_SETUP.print(F("- MCP23017 #"));
+      DBG_SETUP.print(i);
+      DBG_SETUP.println(F(" - [INPUT]"));
+      setupInputMcp(mcp[i], i);  
+      n++;
+    }
+  }
 
+  // Setup Output MCP23017s
+  if (MCP_OUT_NUM > 0) {
+    for (i=n; i<MCP_NUM; i++) {
+      DBG_SETUP.print(F("- MCP23017 #"));
+      DBG_SETUP.print(i);
+      DBG_SETUP.println(F(" - [OUTPUT]"));
+      setupOutputMcp(mcp[i], i);  
+    }
+  }
+  
   // Arduino IRQ  
   DBG_SETUP.print(F("- Arduino IRQ ..."));
   pinMode(INT_PIN, INPUT_PULLUP);
@@ -211,15 +252,18 @@ void setup() {
   // Global vars
   DBG_SETUP.print(F("- Global Vars ... "));
   delay(DEBUG_SETUP_DELAY);
-  g_laststate = 0xff;
-  g_button_scan_active = false;
-  g_button_scan_timer = millis();
-  g_button_scan_state = 0;
-  g_button_scan_laststate = 0;
-  g_lastReset = millis();
-  g_lastPrint = millis();
-  g_button_last_irq = millis();
-  irqFlag = false;
+  
+  g_buttonPollingActive = false;    
+  g_irqFlag = false;
+  g_lastButtonIrqTime = millis();
+  g_lastButtonState = 0;
+  g_lastButtonScanTime = millis();
+  g_lastIntState = 0xff;
+  g_lastOutState = 0x00000000;
+  g_lastOutTime = millis();  
+  g_lastPrintTime = millis();
+  g_lastResetTime = millis();    
+  
   DBG_SETUP.println(F("done."));
   delay(DEBUG_SETUP_DELAY);
 
@@ -227,6 +271,150 @@ void setup() {
   DBG.println(F("Init complete, starting Main-Loop"));
   DBG.println(F("#################################"));
   delay(DEBUG_SETUP_DELAY);
+}
+
+/************************************************************
+ * Read Factory Defaults from Flash
+ * @param FDTable Table to be read [0:Click 1:Double-Click 2:Long-Click]
+ * @param FDTableValType Type of Value to be read [0:inPin 1:eventType 2:outPin 3:Tablesize]
+ * @param FDTableEntryNum Entry Number to be read
+ * @returns requested value 
+ * To get the Tablesize from a Table read
+ *  - FDTableValType= 3
+ *  - FDTableEntryNum=0  
+ ************************************************************/ 
+uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, uint8_t FDTableEntryNum) {  
+  uint8_t reqVal;
+  // Click
+  if (FDTableNum == 0) {    
+    if (FDTableValType < 3) {
+      reqVal = pgm_read_byte( &FactoryDefaultClickTable[FDTableEntryNum][FDTableValType]);
+    } else {
+      reqVal = sizeof(FactoryDefaultClickTable);
+    }
+  // Double-Click
+  } else if (FDTableNum == 1) {
+    if (FDTableValType < 3) {
+      reqVal = pgm_read_byte( &FactoryDefaultDoubleClickTable[FDTableEntryNum][FDTableValType]);
+    } else {
+      reqVal = sizeof(FactoryDefaultDoubleClickTable);
+    }
+  // Long-Click
+  } else {
+    if (FDTableValType < 3) {
+      reqVal = pgm_read_byte( &FactoryDefaultLongClickTable[FDTableEntryNum][FDTableValType]);
+    } else {
+      reqVal = sizeof(FactoryDefaultLongClickTable);
+    }
+  }
+  return (reqVal);
+}
+ 
+/************************************************************
+ * Copy Factory Defaults from Flash to EEPROM
+ * Three Tables in Flash containing factory default are copied to EEPROM
+ *  - FactoryDefaultButtonClickTable[][3]
+ *  - FactoryDefaultButtonDoubleClickTable[][3]
+ *  - FactoryDefaultButtonLongClickTable[][3]
+ ************************************************************ 
+ * See mySettings.h forfurther Documentation *
+ ************************************************************/ 
+void copyFactoryDefaultsToEEPROM (void) {
+  boolean dontStore;
+  uint16_t E2Adr;
+  uint8_t E2Val;  
+  uint8_t entryNum;
+  uint8_t inPin;  
+  uint8_t eventType;  
+  uint8_t outPin;    
+  uint8_t FDTableSize;
+  uint8_t FDTableNum;       // 0:ClickTable 1:DoubleClickTable 2:LongClickTable  
+  // Clear EEPROM
+  for (E2Adr = EEPROM_OFFSET_CLICK; E2Adr < EEPROM_OFFSET_CLICK_LONG_END; E2Adr++) {
+    EEPROM.write(E2Adr, 0x00);
+  }
+  // Copy one Table each loop
+  for (FDTableNum = 0; FDTableNum <3; FDTableNum++){
+    DBG_EEPROM_INIT.print(F("EEPROM-Init - FDTableNum:"));
+    DBG_EEPROM_INIT.println(FDTableNum);      
+    // get Tablesize (FDTableValType = 3 returns Tablesize)
+    FDTableSize = ReadFactoryDefaultTable (FDTableNum, 3, 0) / 3; 
+    DBG_EEPROM_INIT.print(F("EEPROM-Init - FDTableSize:"));
+    DBG_EEPROM_INIT.println(FDTableSize);      
+    // For each Entry
+    for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
+      DBG_EEPROM_INIT.print(F("EEPROM-Init - entryNum:"));
+      DBG_EEPROM_INIT.print(entryNum);      
+      inPin     = ReadFactoryDefaultTable (FDTableNum, 0, entryNum);      
+      DBG_EEPROM_INIT.print(F(" - inPin:"));
+      DBG_EEPROM_INIT.print(inPin);      
+      eventType = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);
+      DBG_EEPROM_INIT.print(F(" - eventType:"));
+      DBG_EEPROM_INIT.print(eventType);      
+      outPin    = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
+      DBG_EEPROM_INIT.print(F(" - outPin:"));
+      DBG_EEPROM_INIT.println(outPin);      
+      // Store only 
+      dontStore = false;        
+      // - if eventType is from 0 to 3
+      if (eventType > 3) {
+         dontStore = true;
+      }
+      // - if inPin is from 0 to MaxInputPins-1
+      if ( inPin > (MCP_IN_PINS-1) ) { 
+        dontStore = true; 
+      }
+      // - if outPin is from 0 to MaxOutputPins-1 if eventType != 0 (ON, OFF or TOGGLE)
+      if ( eventType != 0 ) {                 
+        if ( inPin > (MCP_OUT_PINS-1) ) { 
+          dontStore = true; 
+        } 
+      // - if outPin is from 0 to 63 if eventType == 0 (Special Event)    
+      } else {          
+        if (inPin > 63) { 
+          dontStore = true; 
+        } 
+      }
+    }
+    if (dontStore){
+      DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
+      DBG_ERROR.print(entryNum);       
+      DBG_ERROR.print(F(" (eventType:"));
+      DBG_ERROR.print(eventType);       
+      DBG_ERROR.print(F(" - inPin:"));
+      DBG_ERROR.print(inPin);       
+      DBG_ERROR.print(F(" - outPin:"));
+      DBG_ERROR.print(outPin);       
+      DBG_ERROR.println(F(")"));
+    } else {
+      E2Val = (eventType <<6) || outPin;
+      E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
+      // Debug Output
+      DBG_EEPROM_INIT.print(F("EEPROM-Init - Adr:0x"));
+      if (E2Adr < 0x0F) DBG_EEPROM_INIT.print(F("0"));
+      DBG_EEPROM_INIT.print(E2Adr,HEX);             
+      DBG_EEPROM_INIT.print(F(" - Value:0x"));
+      if (E2Val < 0x0F) DBG_EEPROM_INIT.print(F("0"));
+      DBG_EEPROM_INIT.println(E2Val,HEX);    
+      // Write to EEPROM
+      EEPROM.write(E2Adr, E2Val);
+    }
+  }    
+}
+
+
+/************************************************************
+ *  Set Output Ports
+ ************************************************************
+ *
+ ************************************************************/
+void SetOutputs(uint32_t newOutState) {
+  // Output only if state has changed
+  if (g_lastOutState != newOutState) {
+    g_lastOutState = newOutState;
+    mcp[2].writeGPIOAB((uint16_t)(newOutState && 0xffff));
+    mcp[3].writeGPIOAB((uint16_t)(newOutState >> 16));
+  }
 }
 
 
@@ -342,8 +530,8 @@ void setup() {
    * Read Inputs
    ************************************************************/  
   void ReadInputs() {  
-    if (millis() - g_lastPrint > HEARTBEAT) {    
-      g_lastPrint = millis();
+    if (millis() - g_lastPrintTime > HEARTBEAT) {    
+      g_lastPrintTime = millis();
       #if DEBUG_HEARTBEAT        
         DBG_HEARTBEAT.print(F("H-0"));
         printStateAB(mcp[0].readGPIOAB());      
@@ -364,7 +552,7 @@ void ProcessIrq(void) {
   uint8_t intstate;
 
   // Print Value
-  if (irqFlag) {
+  if (g_irqFlag) {
     // Print Portstate      
     #if DEBUG_IRQ   
       DBG_IRQ.print(F("I-0"));
@@ -372,24 +560,24 @@ void ProcessIrq(void) {
       DBG_IRQ.print(F("I-1"));
       printStateAB(mcp[1].readGPIOAB());      
     #endif //  DEBUG_IRQ   
-    irqFlag = false;    
+    g_irqFlag = false;    
   } 
   delay(100);
 
   // Arduino IRQ-Pin changed        
   intstate = digitalRead(INT_PIN);
-  if (g_laststate != intstate) {
-    g_laststate = intstate;
+  if (g_lastIntState != intstate) {
+    g_lastIntState = intstate;
     #if DEBUG_IRQ   
       DBG_IRQ.print(F("Int: "));
-      DBG_IRQ.println(g_laststate);      
+      DBG_IRQ.println(g_lastIntState);      
     #endif // DEBUG_IRQ   
   } 
 
   // Reset IRQ State if INT=0 (cative)
   if (!intstate){      
-    if (millis() - g_lastReset > IRQ_RESETINTERVAL) {
-      g_lastReset = millis();
+    if (millis() - g_lastResetTime > IRQ_RESETINTERVAL) {
+      g_lastResetTime = millis();
       i_port = mcp[0].readGPIOAB();  // Read Port A + B    
       if (i_port == 0) {
         // clearInterrupts    
@@ -416,54 +604,58 @@ void ProcessIrq(void) {
 
 /************************************************************
  * Scan Input Buttons
+ ************************************************************
+ * Read Input-State if
+ *  - IRQ occured since last call                         [1]
+ *  - after IRQ occured                                   [2] 
+ *    - every BUTTON_SCANINT [ms]                         [3]
+ *    - untill all inputs=0 for at least BUTTON_SCANTIME  [4]
  ***********************************************************/
 void ScanButtons(void) {           
-  uint32_t thisstate;  
-  boolean doscan;
+  uint32_t thisstate;   // state of this scan
+  boolean dothisscan;   // scan this time
   
-  // Scan only if
-  // - IRQ occured 
-  // TODO - every 10ms after IRQ occured for 5s
-  doscan = false;
-  
-  // IRQ occured 
-  if (irqFlag) {     
-    doscan = true;        
-    irqFlag = false;    
-    g_button_scan_active = true;
-    g_button_last_irq = millis();
-  } 
-  
-  // If scan is still active, scann every BUTTON_SCANTIME [ms]
-  if (g_button_scan_active) {
-    if (millis() - g_button_last_irq > BUTTON_SCANTIME) {
-      doscan = true;        
-      g_button_last_irq = millis();    
+  dothisscan = false;
+  thisstate = 0x0000;
+    
+  // IRQ occured [1]
+  if (g_irqFlag) {     
+    dothisscan = true;        
+    g_irqFlag = false;    
+    g_buttonPollingActive = true;
+    g_lastButtonIrqTime = millis();
+  // If scan is still active [2]
+  } else if (g_buttonPollingActive) {
+    // scan every BUTTON_SCANINT[ms]  [3]
+    if (millis() - g_lastButtonIrqTime > BUTTON_SCANINT) {
+      dothisscan = true;              
     }
   }
   
-  if (doscan) {     
+  if (dothisscan) {     
     // Read all GPIO Registers        
     thisstate = (uint32_t)mcp[0].readGPIOAB() + ((uint32_t)mcp[1].readGPIOAB() << 16);
         
     // State changed?
-    if (thisstate != g_button_scan_laststate) {    
-      g_button_scan_laststate = thisstate;
+    if (thisstate != g_lastButtonState) {    
+      g_lastButtonState = thisstate;      
       DBG_STATE_CHANGE.print(F("Scan: "));
       printStateABCD(thisstate);
-    }
 
-    // If all Inputs = 0 AND All ButtonStates = idle    
-    if (thisstate == 0) {
-      // End Scan 
-      g_button_scan_active = false;
-      // Reset IRQ 
-      DBG_IRQ.println(F("Reseting IRQs"));
-      mcp[0].readRegister(MCP23017_INTCAPA);
-      mcp[0].readRegister(MCP23017_INTCAPB);      
-      mcp[1].readRegister(MCP23017_INTCAPA);
-      mcp[1].readRegister(MCP23017_INTCAPB);
-    }
+      // Reset MCP IRQ Registers, if all Inputs = 0 
+      if (thisstate == 0) {
+        // Reset IRQ 
+        DBG_IRQ.println(F("Reseting IRQs"));
+        mcp[0].readRegister(MCP23017_INTCAPA);
+        mcp[0].readRegister(MCP23017_INTCAPB);      
+        mcp[1].readRegister(MCP23017_INTCAPA);
+        mcp[1].readRegister(MCP23017_INTCAPB);
+        // End Scan [4]
+        if (millis() - g_lastButtonIrqTime > BUTTON_SCANINT) {
+          g_buttonPollingActive = false;      
+        }
+      }
+    }    
   }
 }
 
@@ -472,9 +664,30 @@ void ScanButtons(void) {
  * Main Loop
  ************************************************************/
 void loop(){ 
-  ScanButtons();
+  uint32_t newout;
+  // ScanButtons();
   //SpeedTest();
   //ReadInputs();
   //ProcessIrq();
-  
+
+  copyFactoryDefaultsToEEPROM();
+  delay (50000000L);
+
+  if (millis() - g_lastOutTime > 50000000) {
+    copyFactoryDefaultsToEEPROM();
+    g_lastOutTime = millis();
+    g_lastButtonState++;
+    if (g_lastButtonState == 1){
+      newout = 0xFF00;      
+    } else {
+      newout = 0x00FF;
+      g_lastButtonState =0;
+    }
+    DBG_OUTPUT.print(F("Out: "));
+    DBG_OUTPUT.println(newout,HEX);
+    mcp[2].writeGPIOAB(newout);
+    mcp[3].writeGPIOAB(newout);
+    //MCP23017_GPIOA
+    // mcp[3].writeGPIOAB(newout);
+  }
 } 

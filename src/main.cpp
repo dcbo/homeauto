@@ -312,10 +312,11 @@ uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, ui
  
 /************************************************************
  * Copy Factory Defaults from Flash to EEPROM
- * Three Tables in Flash containing factory default are copied to EEPROM
- *  - FactoryDefaultButtonClickTable[][3]
- *  - FactoryDefaultButtonDoubleClickTable[][3]
- *  - FactoryDefaultButtonLongClickTable[][3]
+ ************************************************************
+ * Convert 3 Tables and store Data to EEPROM
+ *  - FactoryDefaultClickTable[][3]
+ *  - FactoryDefaultDoubleClickTable[][3]
+ *  - FactoryDefaultLongClickTable[][3]
  ************************************************************ 
  * See mySettings.h forfurther Documentation *
  ************************************************************/ 
@@ -334,16 +335,12 @@ void copyFactoryDefaultsToEEPROM (void) {
     EEPROM.write(E2Adr, 0x00);
   }
   // Copy one Table each loop
-  for (FDTableNum = 0; FDTableNum <3; FDTableNum++){
-    DBG_EEPROM_INIT.print(F("EEPROM-Init - FDTableNum:"));
-    DBG_EEPROM_INIT.println(FDTableNum);      
+  for (FDTableNum = 0; FDTableNum <3; FDTableNum++){    
     // get Tablesize (FDTableValType = 3 returns Tablesize)
-    FDTableSize = ReadFactoryDefaultTable (FDTableNum, 3, 0) / 3; 
-    DBG_EEPROM_INIT.print(F("EEPROM-Init - FDTableSize:"));
-    DBG_EEPROM_INIT.println(FDTableSize);      
+    FDTableSize = ReadFactoryDefaultTable (FDTableNum, 3, 0) / 3;     
     // For each Entry
     for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
-      DBG_EEPROM_INIT.print(F("EEPROM-Init - entryNum:"));
+      DBG_EEPROM_INIT.print(F("EEPROM-Init - #:"));
       DBG_EEPROM_INIT.print(entryNum);      
       inPin     = ReadFactoryDefaultTable (FDTableNum, 0, entryNum);      
       DBG_EEPROM_INIT.print(F(" - inPin:"));
@@ -353,7 +350,7 @@ void copyFactoryDefaultsToEEPROM (void) {
       DBG_EEPROM_INIT.print(eventType);      
       outPin    = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
       DBG_EEPROM_INIT.print(F(" - outPin:"));
-      DBG_EEPROM_INIT.println(outPin);      
+      DBG_EEPROM_INIT.print(outPin);      
       // Store only 
       dontStore = false;        
       // - if eventType is from 0 to 3
@@ -374,30 +371,31 @@ void copyFactoryDefaultsToEEPROM (void) {
         if (inPin > 63) { 
           dontStore = true; 
         } 
+      }    
+      if (!dontStore){
+        E2Val = (eventType << 6) | (outPin & 0x3f);
+        E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
+        // Debug Output
+        DBG_EEPROM_INIT.print(F(" -> EEPROM - Adr:0x"));
+        if (E2Adr < 0x10) DBG_EEPROM_INIT.print(F("0"));
+        DBG_EEPROM_INIT.print(E2Adr,HEX);             
+        DBG_EEPROM_INIT.print(F(" - Value:0x"));
+        if (E2Val < 0x10) DBG_EEPROM_INIT.print(F("0"));
+        DBG_EEPROM_INIT.println(E2Val,HEX);    
+        // Write to EEPROM
+        EEPROM.write(E2Adr, E2Val);                
+      } else {
+        DBG_EEPROM_INIT.println(F(" - ERROR - Value not stored"));
+        DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
+        DBG_ERROR.print(entryNum);       
+        DBG_ERROR.print(F(" (eventType:"));
+        DBG_ERROR.print(eventType);       
+        DBG_ERROR.print(F(" - inPin:"));
+        DBG_ERROR.print(inPin);       
+        DBG_ERROR.print(F(" - outPin:"));
+        DBG_ERROR.print(outPin);       
+        DBG_ERROR.println(F(")"));
       }
-    }
-    if (dontStore){
-      DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
-      DBG_ERROR.print(entryNum);       
-      DBG_ERROR.print(F(" (eventType:"));
-      DBG_ERROR.print(eventType);       
-      DBG_ERROR.print(F(" - inPin:"));
-      DBG_ERROR.print(inPin);       
-      DBG_ERROR.print(F(" - outPin:"));
-      DBG_ERROR.print(outPin);       
-      DBG_ERROR.println(F(")"));
-    } else {
-      E2Val = (eventType <<6) || outPin;
-      E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
-      // Debug Output
-      DBG_EEPROM_INIT.print(F("EEPROM-Init - Adr:0x"));
-      if (E2Adr < 0x0F) DBG_EEPROM_INIT.print(F("0"));
-      DBG_EEPROM_INIT.print(E2Adr,HEX);             
-      DBG_EEPROM_INIT.print(F(" - Value:0x"));
-      if (E2Val < 0x0F) DBG_EEPROM_INIT.print(F("0"));
-      DBG_EEPROM_INIT.println(E2Val,HEX);    
-      // Write to EEPROM
-      EEPROM.write(E2Adr, E2Val);
     }
   }    
 }

@@ -167,16 +167,16 @@
 /********************************************************
  * Events
  ********************************************************
- * Main Config is done here. (factory DEFAULTS)
+ * Main Config is done here. (Factory Defaults)
  * Values are written in Tables in EEPROM during boot.
  * ToDo:
  * - Implement Function to alter Configuration
  ******************************************************** 
- * Format: (EEPROM Size is 1024 Byte)
+ * EEPROM Format: (EEPROM Size is 1024 Byte)
  * - Click, Double-Click, Long-Click Events are 
  *   stored in three seperate tables.
  * - We have 32 Inputs, so each table contains 32 actions
- *   First Table-Entry correspond to first Input
+ *   First Table-Entry corresponds to First Input
  * - Size of each Table Entry is 1 Byte
  *   - Upper two Bit ((value && 0xC0)>>6) 
  *     containing the Event Type EVENT_TOGGLE, EVENT_ON,
@@ -207,9 +207,9 @@
 // BUTTON_CLICK - Events
 static const uint8_t FactoryDefaultClickTable[][3] PROGMEM = {    
     {1, EVENT_ON, 5} ,
-    {2, EVENT_ON, 5} ,
-    {3, EVENT_ON, 5} ,
-    {4, EVENT_ON, 5} ,
+    {2, EVENT_ON, 31} ,
+    {3, EVENT_ON, 31} ,
+    {31, EVENT_SPECIAL, 63} ,
     {in_S1, EVENT_TOGGLE, out_L1} ,  //  S1 -> TOGGLE L1
     {in_S2, EVENT_TOGGLE, out_L2} ,  //  S2 -> TOGGLE L2
     {in_S3, EVENT_TOGGLE, out_L3} ,  //  S3 -> TOGGLE L3

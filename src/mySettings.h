@@ -20,10 +20,10 @@
 /********************************************************
  * Input (Button) Names
  ********************************************************/
-#define in_3R1          IN_01    // Rollade Büro rechts
-#define in_3R2          IN_02    // Rollade Büro links
-#define in_2R1          IN_03    // Rollade Schlafzimmer rechts
-#define in_2R2          IN_04    // Rollade Schlafzimmer links
+#define in_3R1          IN_01    // Rollade Kinderzimmer Bett
+#define in_3R2          IN_02    // Rollade Kinderzimmer Schrank
+#define in_2R1          IN_03    // Rollade Schlafzimmer Yvonne
+#define in_2R2          IN_04    // Rollade Schlafzimmer Dario
 
 #define in_S1           IN_05    // Wohnzimmer 4er - 1
 #define in_S2           IN_06    // Wohnzimmer 4er - 2
@@ -36,8 +36,8 @@
 #define in_S7           IN_11    // Wohnzimmer Schlafzimmer oben
 #define in_S8           IN_12    // Wohnzimmer Schlafzimmer unten
 
-#define in_S9           IN_13    // Wohnzimmer Büro oben
-#define in_S10          IN_14    // Wohnzimmer Büro unten
+#define in_S9           IN_13    // Wohnzimmer Kinderzimmer oben
+#define in_S10          IN_14    // Wohnzimmer Kinderzimmer unten
 
 #define in_S11          IN_15    // Diele Wohnunseingang
 
@@ -74,8 +74,8 @@
 
 #define out_2L1         OUT_14   // Licht Schlafzimmer
 
-#define out_3L1         OUT_15   // Licht Charlotte Bettseite
-#define out_3L2         OUT_16   // Licht Charlotte Schrankseite
+#define out_3L1         OUT_15   // Licht Kinderzimmer Bettseite
+#define out_3L2         OUT_16   // Licht Kinderzimmer Schrankseite
 
 #define out_7L1         OUT_17   // Licht Küche
 #define out_7L2         OUT_18   // Licht Vorratskammer
@@ -96,6 +96,25 @@
 #define out_8D1         OUT_29   // Linke Steckdose hinter dem Backofen
 
 
+/********************************************************
+ * Special Actions
+ *******************************************************/
+#define SE_NONE          0         // Special Action: No Action
+#define SE_R1_ACTION     1         // Special Action: Roller 1: Action
+#define SE_R2_ACTION     2         // Special Action: Roller 2: Action
+#define SE_R3_ACTION     3         // Special Action: Roller 3: Action
+#define SE_R4_ACTION     4         // Special Action: Roller 4: Action
+#define SE_R12_ACTION    5         // Special Action: Roller 1+2: Action
+#define SE_R12_UP        6         // Special Action: Roller 1+2: Up
+#define SE_R12_DOWN      7         // Special Action: Roller 1+2: Down
+#define SE_R34_ACTION    8         // Special Action: Roller 3+4: Actionn
+#define SE_R34_UP        9         // Special Action: Roller 3+4: Up
+#define SE_R34_DOWN     10         // Special Action: Roller 3+4: Down
+#define SE_14L1_14L2    11         // Special Action: Licht Gäste-WC: Decke + Spiegel
+#define SE_3L1_3L2      12         // Special Action: Licht Kinderzimmer: Bettseite + Schrankseite
+#define SE_LEAVING      13         // Special Action: Leaving - Alle Lichter aus
+#define SE_CHRISTMAS    14         // Special Action: Christmas Lights (out_3D3 + out_3D4 + out_8D1)
+ 
 
 /********************************************************
  * Events
@@ -138,33 +157,105 @@
  ********************************************************/
 
 // BUTTON_CLICK - Events
-static const uint8_t FactoryDefaultClickTable[][3] PROGMEM = {        
-    {in_S1, EVENT_TOGGLE, out_L1} ,  //  S1 -> TOGGLE L1
-    {in_S2, EVENT_TOGGLE, out_L2} ,  //  S2 -> TOGGLE L2
-    {in_S3, EVENT_TOGGLE, out_L3} ,  //  S3 -> TOGGLE L3
-    {in_S4, EVENT_TOGGLE, out_L5} ,  //  S4 -> TOGGLE L5
-    {1, EVENT_ON, 5} ,               //  FOR TESTING ONLY
-    {2, EVENT_ON, 31} ,              //  FOR TESTING ONLY 
-    {3, EVENT_ON, 31} ,              //  FOR TESTING ONLY 
-    {31, EVENT_SPECIAL, 63}          //  FOR TESTING ONLY 
+static const uint8_t FactoryDefaultClickTable[][3] PROGMEM = {            
+    {in_3R1,  EVENT_SPECIAL, SE_R1_ACTION},      // Rollade Kinderzimmer Bett      -> Roller-Action (Bett)
+    {in_3R2,  EVENT_SPECIAL, SE_R2_ACTION},      // Rollade Kinderzimmer Schrank   -> Roller-Action (Schrank)
+    {in_2R1,  EVENT_SPECIAL, SE_R3_ACTION},      // Rollade Schlafzimmer Yvonne    -> Roller-Action (Yvonne)
+    {in_2R2,  EVENT_SPECIAL, SE_R4_ACTION},      // Rollade Schlafzimmer Dario     -> Roller-Action (Dario) 
+    {in_S1,   EVENT_TOGGLE,  out_L1},            // Wohnzimmer 4er - 1             -> Licht Wohnzimmer 1
+    {in_S2,   EVENT_TOGGLE,  out_L2},            // Wohnzimmer 4er - 2             -> Licht Wohnzimmer 2
+    {in_S3,   EVENT_TOGGLE,  out_L3},            // Wohnzimmer 4er - 3             -> Licht Wohnzimmer 3
+    {in_S4,   EVENT_TOGGLE,  out_L5},            // Wohnzimmer 4er - 4             -> Licht Diele
+    {in_S5,   EVENT_TOGGLE,  out_L3},            // Wohnzimmer Balkon oben         -> Licht Wohnzimmer 3
+    {in_S6,   EVENT_TOGGLE,  OUT_17},            // Wohnzimmer Balkon unten        -> Licht Küche
+    {in_S7,   EVENT_TOGGLE,  out_L1},            // Wohnzimmer Schlafzimmer oben   -> Licht Wohnzimmer 1
+    {in_S8,   EVENT_TOGGLE,  out_L3},            // Wohnzimmer Schlafzimmer unten  -> Licht Wohnzimmer 3
+    {in_S9,   EVENT_TOGGLE,  out_L1},            // Wohnzimmer Kinderzimmer oben   -> Licht Wohnzimmer 1
+    {in_S10,  EVENT_TOGGLE,  out_L3},            // Wohnzimmer Kinderzimmer unten  -> Licht Wohnzimmer 3
+    {in_S11,  EVENT_TOGGLE,  out_L5},            // Diele Wohnunseingang           -> Licht Diele
+    {in_2S1,  EVENT_TOGGLE,  out_2L1},           // Schlafzimmer                   -> Licht Schlafzimmer
+    {in_7S1,  EVENT_TOGGLE,  out_7L1},           // Küche                          -> Licht Küche
+    {in_7S2,  EVENT_TOGGLE,  out_7L2},           // Vorratskammer                  -> Licht Vorratskammer
+    {in_13S1, EVENT_TOGGLE,  out_13L2},          // Bad oben                       -> Licht Bad Spiegel
+    {in_13S2, EVENT_TOGGLE,  out_13L1},          // Bad unten                      -> Licht Bad Decke
+    {in_14S1, EVENT_SPECIAL, SE_14L1_14L2},      // Gäste-WC                       -> Licht Gäste-WC: (Decke + Spiegel)
+    {in_3S2,  EVENT_SPECIAL, SE_3L1_3L2}         // Kinderzimmer                   -> Licht Kinderzimmer: (Bett + Schrank)
 };
 
+
 // BUTTON_DOUBLE_CLICK - Events
-static const uint8_t FactoryDefaultDoubleClickTable[][3] PROGMEM = {    
-    {in_S1, EVENT_TOGGLE, out_L2} ,  //  S1 -> TOGGLE L2  For Test Only
-    {in_S2, EVENT_TOGGLE, out_L3} ,  //  S2 -> TOGGLE L3  For Test Only
-    {in_S3, EVENT_TOGGLE, out_L5} ,  //  S3 -> TOGGLE L5  For Test Only
-    {in_S4, EVENT_TOGGLE, out_L1}    //  S4 -> TOGGLE L1  For Test Only
+static const uint8_t FactoryDefaultClickDoubleTable[][3] PROGMEM = {        
+    {in_3R1,  EVENT_SPECIAL, SE_R12_ACTION},      // Rollade Kinderzimmer Bett      -> Roller-Action (1 + 2)
+    {in_3R2,  EVENT_SPECIAL, SE_R12_ACTION},      // Rollade Kinderzimmer Schrank   -> Roller-Action (1 + 2)
+    {in_2R1,  EVENT_SPECIAL, SE_R34_ACTION},      // Rollade Schlafzimmer Yvonne    -> Roller-Action (3 + 4) 
+    {in_2R2,  EVENT_SPECIAL, SE_R34_ACTION},      // Rollade Schlafzimmer Dario     -> Roller-Action (3 + 4)
+    {in_S1,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer 4er - 1             -> [     ]
+    {in_S2,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer 4er - 2             -> [     ]
+    {in_S3,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer 4er - 3             -> [     ]
+    {in_S4,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer 4er - 4             -> [     ]
+    {in_S5,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer Balkon oben         -> [     ] 
+    {in_S6,   EVENT_SPECIAL, SE_NONE},            // Wohnzimmer Balkon unten        -> [     ]
+    {in_S7,   EVENT_SPECIAL, SE_R34_UP},          // Wohnzimmer Schlafzimmer oben   -> Roller-Up   (3 + 4)
+    {in_S8,   EVENT_SPECIAL, SE_R34_DOWN},        // Wohnzimmer Schlafzimmer unten  -> Roller-Down (3 + 4)
+    {in_S9,   EVENT_SPECIAL, SE_R12_UP},          // Wohnzimmer Kinderzimmer oben   -> Roller-Up   (1 + 2)
+    {in_S10,  EVENT_SPECIAL, SE_R12_DOWN},        // Wohnzimmer Kinderzimmer unten  -> Roller-Down (1 + 2) 
+    {in_S11,  EVENT_SPECIAL, SE_LEAVING},         // Diele Wohnunseingang           -> Leaving (alles aus, bis auf ...)
+    {in_2S1,  EVENT_SPECIAL, SE_NONE},            // Schlafzimmer                   -> [      ]
+    {in_7S1,  EVENT_TOGGLE,  out_L3},             // Küche                          -> Licht Licht Wohnzimmer 3
+    {in_7S2,  EVENT_SPECIAL, SE_NONE},            // Vorratskammer                  -> [      ]
+    {in_13S1, EVENT_TOGGLE,  out_13L3},           // Bad oben                       -> Licht Bad Sternenhimmel    
+    {in_13S2, EVENT_TOGGLE,  out_13L3},           // Bad unten                      -> Licht Bad Sternenhimmel
+    {in_14S1, EVENT_TOGGLE,  out_14L2},           // Gäste-WC                       -> Licht Gäste-WC Decke
+    {in_3S2,  EVENT_TOGGLE,  out_3L2}             // Kinderzimmer                   -> Licht Kinderzimmer Schrankseite
 };
 
 // BUTTON_LONG_CLICK - Events
-static const uint8_t FactoryDefaultLongClickTable[][3] PROGMEM = {    
-    {in_S1, EVENT_OFF, out_L1} ,     //  S1 -> OFF L1
-    {in_S2, EVENT_OFF, out_L2} ,     //  S2 -> OFF L2
-    {in_S3, EVENT_OFF, out_L3} ,     //  S3 -> OFF L3
-    {in_S4, EVENT_OFF, out_L5}       //  S4 -> OFF L5
+static const uint8_t FactoryDefaultClickLongTable[][3] PROGMEM = {    
+    {in_3R1,  EVENT_SPECIAL, SE_NONE},               // Rollade Kinderzimmer Bett      -> [     ]
+    {in_3R2,  EVENT_SPECIAL, SE_NONE},               // Rollade Kinderzimmer Schrank   -> [     ]
+    {in_2R1,  EVENT_SPECIAL, SE_NONE},               // Rollade Schlafzimmer Yvonne    -> [     ]
+    {in_2R2,  EVENT_SPECIAL, SE_NONE},               // Rollade Schlafzimmer Dario     -> [     ]
+    {in_S1,   EVENT_SPECIAL, SE_NONE},               // Wohnzimmer 4er - 1             -> [     ]
+    {in_S2,   EVENT_SPECIAL, SE_NONE},               // Wohnzimmer 4er - 2             -> [     ]
+    {in_S3,   EVENT_SPECIAL, SE_NONE},               // Wohnzimmer 4er - 3             -> [     ]
+    {in_S4,   EVENT_SPECIAL, SE_NONE},               // Wohnzimmer 4er - 4             -> [     ]
+    {in_S5,   EVENT_TOGGLE, out_6D1},                // Wohnzimmer Balkon oben         -> Balkon 
+    {in_S6,   EVENT_SPECIAL, SE_CHRISTMAS},          // Wohnzimmer Balkon unten        -> (out_3D3 + out_3D4 + out_8D1)
+    {in_S7,   EVENT_TOGGLE, out_6D1},                // Wohnzimmer Schlafzimmer oben   -> Balkon
+    {in_S8,   EVENT_SPECIAL, SE_CHRISTMAS},          // Wohnzimmer Schlafzimmer unten  -> (out_3D3 + out_3D4 + out_8D1)
+    {in_S9,   EVENT_TOGGLE, out_6D1},                // Wohnzimmer Kinderzimmer oben   -> Balkon
+    {in_S10,  EVENT_SPECIAL, SE_CHRISTMAS},          // Wohnzimmer Kinderzimmer unten  -> (out_3D3 + out_3D4 + out_8D1)
+    {in_S11,  EVENT_SPECIAL, SE_NONE},               // Diele Wohnunseingang           -> [     ]
+    {in_2S1,  EVENT_SPECIAL, SE_NONE},               // Schlafzimmer                   -> [     ]
+    {in_7S1,  EVENT_SPECIAL, SE_NONE},               // Küche                          -> [     ]
+    {in_7S2,  EVENT_SPECIAL, SE_NONE},               // Vorratskammer                  -> [     ]
+    {in_13S1, EVENT_SPECIAL, SE_NONE},               // Bad oben                       -> [     ]
+    {in_13S2, EVENT_SPECIAL, SE_NONE},               // Bad unten                      -> [     ]
+    {in_14S1, EVENT_SPECIAL, SE_NONE},               // Gäste-WC                       -> [     ]
+    {in_3S2,  EVENT_SPECIAL, SE_NONE}                // Kinderzimmer                   -> [     ]
 };
 
+/********************************************************
+ * Rollers: Number and Time Constants 
+ ********************************************************
+ * - Rollers must be attached to the first OUTPUT Ports
+ *   - OUT_01: Roller 1 - UP
+ *   - OUT_02: Roller 2 - DOWN
+ * - For each Roller the Time to move completely up/down
+ *   has to be configured in Half Seconds [500ms]
+ ******************************************************** 
+ * EEPROM Format: 
+ * - Number of Roller is stored at EEPROM Postion
+ *   EEPROM_OFFSET_ROLL_NUM 
+ * - Two values for each Roller are stored directly behind
+ ********************************************************/
+static const uint8_t FactoryDefaultRollerTable[][2] PROGMEM = {    
+    {46, 45} ,     //  Roller 1:  23 Seconds Up, 22,5 Seconds Down
+    {46, 45} ,     //  Roller 2:  23 Seconds Up, 22,5 Seconds Down
+    {46, 45} ,     //  Roller 3:  23 Seconds Up, 22,5 Seconds Down
+    {46, 45} ,     //  Roller 4:  23 Seconds Up, 22,5 Seconds Down
+};
+  
 
 
 /********************************************************
@@ -177,18 +268,6 @@ static const uint8_t FactoryDefaultLongClickTable[][3] PROGMEM = {
 #define BUTTON_SCANTIME    1000  // [ms] Stop scanning every BUTTON_SCANINT after this time 
 
 
-/********************************************************
- * Time Constants for Rollers 
- ********************************************************/
-#define ROLL_num         4       // Number of Rolles
-#define ROLL_R1_maxup    23000   // Time to open [ms]
-#define ROLL_R1_maxdown  23000   // Time to close [ms]
-#define ROLL_R2_maxup    23000   // Time to open [ms]
-#define ROLL_R2_maxdown  23000   // Time to close [ms]
-#define ROLL_R3_maxup    23000   // Time to open [ms]
-#define ROLL_R3_maxdown  23000   // Time to close [ms]
-#define ROLL_R4_maxup    23000   // Time to open [ms]
-#define ROLL_R4_maxdown  23000   // Time to close [ms]
 
 
 /********************************************************
@@ -213,37 +292,6 @@ static const uint8_t FactoryDefaultLongClickTable[][3] PROGMEM = {
 #define tm_3_event
 #define tm_4_time             0
 #define tm_4_event
-
-
-
-
-
-/********************************************************
- * Button Click Types
- ********************************************************/
-#define BUTTON_CLICK          0
-#define BUTTON_CLICK_DOUBLE   1
-#define BUTTON_CLICK_LONG     2
-
-/********************************************************
- * Event Types
- ********************************************************/
-#define EVENT_SPECIAL         0   // followed Special Event ID
-#define EVENT_ON              1   // followed by Output which has to be toggled
-#define EVENT_OFF             2   // followed by Output which has to be toggled
-#define EVENT_TOGGLE          3   // followed by Output which has to be toggled
-
-
-/********************************************************
- * Roller Action Types
- ********************************************************/
-#define ROLL_STOP             0
-#define ROLL_START_UP         1
-#define ROLL_START_DOWN       2
-#define ROLL_START_OPPOSITE   3
-#define ROLL_START_SAME       4
-#define ROLL_CLICK            5
-#define ROLL_TICK             6
 
 
 #endif  // _MYSETTINGS_H_

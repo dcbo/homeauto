@@ -8,6 +8,8 @@
  * - MCP23017 Interupt Pin to Arduino Pin (only Input MCPs)
  * - MCP23017 Reset Pin to Arduino Pin
  ************************************************************/ 
+#ifndef _MYHWCONFIG_H_
+#define _MYHWCONFIG_H_
 
 
 /************************************************************
@@ -23,12 +25,51 @@
 
 /********************************************************
  * EEPROM OFFSETS (see Events)
+ ******************************************************** 
+ * EEPROM Format: 
+ * 0x000-0x01F: Click Table                            [EE_OFFSET_CLICK]
+ * 0x010-0x03F: Double-Click Table                     [EE_OFFSET_CLICK_DOUBLE]
+ * 0x040-0x05F: Long-Click Table                       [EE_OFFSET_CLICK_LONG]
+ * 0x060      : Number of Rollers                      [EE_OFFSET_ROLL_NUM]
+ * 0x061      : Adress of Roller-Config Table [RRRR]   [EE_OFFSET_ROLL_ADR]
+ * 0x062      : Number of Special Events               [EE_OFFSET_SPECIAL_EVENT_NUM]
+ * 0x063      : Adress of Special Events-Table [SSSS]  [EE_OFFSET_SPECIAL_EVENT_ADR]
+ *********************************************************
+ * Roller-Config Table:                                [EE_OFFSET_BEGIN_VARSPACE]
+ * [RRRR]     :  Two values for each Roller            
+ *              - Time to move completely up [* 500ms]
+ *              - Time to move completely down [* 500ms]
+ *********************************************************
+ * Special Events-Table:
+ * [SSSS]     : Address of Special Event #0  [SE#0]
+ * [SSSS] +1  : Address of Special Event #1  [SE#1]
+ *   ...
+ * [SE#0]     : Special Event #0
+ * [SE#0] +1
+ * [SE#0] +2
+ * [SE#0] +3
+ *   ...
+ * [SE#1]     : Special Event #1
+ * [SE#1] +1
+ * [SE#1] +2 
+ *   ...
  ********************************************************/
-#define EEPROM_OFFSET_CLICK          0
-#define EEPROM_OFFSET_CLICK_DOUBLE   EEPROM_OFFSET_CLICK + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_CLICK_LONG     EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_CLICK_LONG_END EEPROM_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-#define EEPROM_OFFSET_FIRST_FREE     EEPROM_OFFSET_CLICK_LONG_END
+// Click Table: 32 Byte (Number of Input Pins)
+#define EE_OFFSET_CLICK          0
+// Double-Click Table: 32 Byte (Number of Input Pins)
+#define EE_OFFSET_CLICK_DOUBLE       EE_OFFSET_CLICK + (MCP_IN_NUM * 16)
+// Long-Click Table: 32 Byte (Number of Input Pins)
+#define EE_OFFSET_CLICK_LONG         EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+// Number of Rollers
+#define EE_OFFSET_ROLL_NUM           EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+// Address of Pointer to first Element of Roller Table 
+#define EE_OFFSET_ROLL_ADR           EE_OFFSET_ROLL_NUM + 1
+// Number of Special Events
+#define EE_OFFSET_SPECIAL_EVENT_NUM  EE_OFFSET_ROLL_ADR + 1
+// Address of Pointer to first Element of Special Events Table
+#define EE_OFFSET_SPECIAL_EVENT_ADR  EE_OFFSET_SPECIAL_EVENT_NUM + 1
+// Address of first Element in Variable EEPROM Space = first Element of Roller Table 
+#define EE_OFFSET_BEGIN_VARSPACE     EE_OFFSET_SPECIAL_EVENT_ADR + 1
 
 
 /********************************************************
@@ -141,3 +182,4 @@
 #define MCP_RST_PIN           7
 
 
+#endif // _MYHWCONFIG_H_

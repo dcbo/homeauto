@@ -17,15 +17,16 @@
 #include <EEPROM.h>
 #include <Wire.h>
 #include <mcp23017_DC.h>
+#include <myDefines.h>
 #include <myHWconfig.h>
 #include <mySettings.h>
 
 // Debugging Config
 #define DEBUG                 1  // Debug main 
 #define DEBUG_ERROR           1  // Error Messages
-#define DEBUG_EEPROM_INIT     1  // Debug EEPROM Init
+#define DEBUG_EE_INIT         1  // Debug EEPROM Init [1142 Byte]
 #define DEBUG_SETUP           1  // Debug Setup 
-#define DEBUG_SETUP_MCP       1  // Debug Setup MCP
+#define DEBUG_SETUP_MCP       0  // Debug Setup MCP   [386 Byte]
 #define DEBUG_IRQ             1  // Debug IRQ
 #define DEBUG_HEARTBEAT       1  // Debug Heartbeat
 #define DEBUG_OUTPUT          1  // Debug Output
@@ -49,7 +50,6 @@
 #define DEBUG_STATE       (DEBUG_HEARTBEAT || DEBUG_IRQ || DEBUG_STATE_CHANGE)
 #define DBG               if(DEBUG)Serial 
 #define DBG_ERROR         if(DEBUG_ERROR)Serial 
-#define DBG_EEPROM_INIT   if(DEBUG_EEPROM_INIT)Serial 
 #define DBG_SETUP         if(DEBUG_SETUP)Serial 
 #define DBG_SETUP_MCP     if(DEBUG_SETUP_MCP)Serial 
 #define DBG_IRQ           if(DEBUG_IRQ)Serial 
@@ -57,7 +57,7 @@
 #define DBG_OUTPUT        if(DEBUG_OUTPUT)Serial 
 #define DBG_STATE         if(DEBUG_STATE)Serial 
 #define DBG_STATE_CHANGE  if(DEBUG_STATE_CHANGE)Serial 
-
+#define DBG_EE_INIT       if(DEBUG_EE_INIT)Serial 
 
 /************************************************************
  * Global Vars
@@ -275,36 +275,41 @@ void setup() {
 
 /************************************************************
  * Read Factory Defaults from Flash
- * @param FDTable Table to be read [0:Click 1:Double-Click 2:Long-Click]
- * @param FDTableValType Type of Value to be read [0:inPin 1:eventType 2:outPin 3:Tablesize]
+ * @param FDTable Table to be read [TABLE_INDEX_CLICK, TABLE_INDEX_CLICK_DOUBLE, TABLE_INDEX_CLICK_LONG, TABLE_INDEX_ROLLER]
+ * @param FDTableValType Type of Value to be read [0:Tablesize else FDTable[FDTableEntryNum][FDTableValType-1]
  * @param FDTableEntryNum Entry Number to be read
  * @returns requested value 
- * To get the Tablesize from a Table read
- *  - FDTableValType= 3
- *  - FDTableEntryNum=0  
+ * To get the Tablesize from a Table read FDTableValType=0 
  ************************************************************/ 
 uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, uint8_t FDTableEntryNum) {  
   uint8_t reqVal;
-  // Click
-  if (FDTableNum == 0) {    
-    if (FDTableValType < 3) {
-      reqVal = pgm_read_byte( &FactoryDefaultClickTable[FDTableEntryNum][FDTableValType]);
+  // Click Table
+  if (FDTableNum == TABLE_INDEX_CLICK) {    
+    if (FDTableValType != 0) {
+      reqVal = pgm_read_byte( &FactoryDefaultClickTable[FDTableEntryNum][FDTableValType-1]);
     } else {
       reqVal = sizeof(FactoryDefaultClickTable);
     }
-  // Double-Click
-  } else if (FDTableNum == 1) {
-    if (FDTableValType < 3) {
-      reqVal = pgm_read_byte( &FactoryDefaultDoubleClickTable[FDTableEntryNum][FDTableValType]);
+  // Double-Click Table
+  } else if (FDTableNum == TABLE_INDEX_CLICK_DOUBLE) {
+    if (FDTableValType != 0) {
+      reqVal = pgm_read_byte( &FactoryDefaultClickDoubleTable[FDTableEntryNum][FDTableValType-1]);
     } else {
-      reqVal = sizeof(FactoryDefaultDoubleClickTable);
+      reqVal = sizeof(FactoryDefaultClickDoubleTable);
     }
-  // Long-Click
-  } else {
-    if (FDTableValType < 3) {
-      reqVal = pgm_read_byte( &FactoryDefaultLongClickTable[FDTableEntryNum][FDTableValType]);
+  // Long-Click Table
+  } else if (FDTableNum == TABLE_INDEX_CLICK_LONG) {
+    if (FDTableValType != 0) {
+      reqVal = pgm_read_byte( &FactoryDefaultClickLongTable[FDTableEntryNum][FDTableValType-1]);
     } else {
-      reqVal = sizeof(FactoryDefaultLongClickTable);
+      reqVal = sizeof(FactoryDefaultClickLongTable);
+    }
+  // Roller Table
+  } else if (FDTableNum == TABLE_INDEX_ROLLER) {
+    if (FDTableValType != 0) {
+      reqVal = pgm_read_byte( &FactoryDefaultRollerTable[FDTableEntryNum][FDTableValType-1]);
+    } else {
+      reqVal = sizeof(FactoryDefaultRollerTable);
     }
   }
   return (reqVal);
@@ -313,14 +318,14 @@ uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, ui
 /************************************************************
  * Copy Factory Defaults from Flash to EEPROM
  ************************************************************
- * Convert 3 Tables and store Data to EEPROM
+ * Convert 3 Tables and store Data to E2PROM
  *  - FactoryDefaultClickTable[][3]
  *  - FactoryDefaultDoubleClickTable[][3]
  *  - FactoryDefaultLongClickTable[][3]
  ************************************************************ 
  * See mySettings.h forfurther Documentation *
  ************************************************************/ 
-void copyFactoryDefaultsToEEPROM (void) {
+void copyFactoryDefaultsToE2PROM (void) {
   boolean dontStore;
   uint16_t E2Adr;
   uint8_t E2Val;  
@@ -329,44 +334,63 @@ void copyFactoryDefaultsToEEPROM (void) {
   uint8_t eventType;  
   uint8_t outPin;    
   uint8_t FDTableSize;
-  uint8_t FDTableNum;       // 0:ClickTable 1:DoubleClickTable 2:LongClickTable  
-  // Clear EEPROM
-  for (E2Adr = EEPROM_OFFSET_CLICK; E2Adr < EEPROM_OFFSET_CLICK_LONG_END; E2Adr++) {
+  uint8_t FDTableNum;       
+  uint8_t upTime;    
+  uint8_t downTime;    
+  // Clear E2PROM  
+  DBG_EE_INIT.print(F(" -> E2PROM - Erase Click-Tables ..."));
+  for (E2Adr = EE_OFFSET_CLICK; E2Adr < (EE_OFFSET_CLICK + (MCP_IN_NUM * 16 * 3)); E2Adr++) {    
     EEPROM.write(E2Adr, 0x00);
-  }
-  // Copy one Table each loop
-  for (FDTableNum = 0; FDTableNum <3; FDTableNum++){    
-    // get Tablesize (FDTableValType = 3 returns Tablesize)
-    FDTableSize = ReadFactoryDefaultTable (FDTableNum, 3, 0) / 3;     
+  }  
+  DBG_EE_INIT.println(F("Completed"));
+  
+  // Click-Configuration one Table each loop 
+  // - Loop 0: ClickTable 
+  // - Loop 1: DoubleClickTable
+  // - Loop 2: LongClickTable   
+  for (FDTableNum = TABLE_INDEX_CLICK; FDTableNum < TABLE_INDEX_CLICK_LONG+1; FDTableNum++){    
+    // get Tablesize (FDTableValType = 0 returns Tablesize)
+    FDTableSize = ReadFactoryDefaultTable (FDTableNum, 0, 0) / 3;     
+    #if DEBUG_EE_INIT
+      if (FDTableNum==0) {
+        DBG_EE_INIT.println(F("EE-Init - Click-Table:"));
+      } else if (FDTableNum==1) {
+        DBG_EE_INIT.println(F("EE-Init - Double-Click-Table:"));
+      } else {
+        DBG_EE_INIT.println(F("EE-Init - Long-Click-Table:"));
+      }
+    #endif // DEBUG_EE_INIT
     // For each Entry
     for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
-      DBG_EEPROM_INIT.print(F("EEPROM-Init - #:"));
-      DBG_EEPROM_INIT.print(entryNum);      
-      inPin     = ReadFactoryDefaultTable (FDTableNum, 0, entryNum);      
-      DBG_EEPROM_INIT.print(F(" - inPin:"));
-      DBG_EEPROM_INIT.print(inPin);      
-      eventType = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);
-      DBG_EEPROM_INIT.print(F(" - eventType:"));
-      DBG_EEPROM_INIT.print(eventType);      
-      outPin    = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
-      DBG_EEPROM_INIT.print(F(" - outPin:"));
-      DBG_EEPROM_INIT.print(outPin);      
-      // Store only 
+      inPin     = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);      
+      eventType = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
+      outPin    = ReadFactoryDefaultTable (FDTableNum, 3, entryNum);
+      #if DEBUG_EE_INIT
+        DBG_EE_INIT.print(F("EE-Init   - #:"));
+        DBG_EE_INIT.print(entryNum);      
+        DBG_EE_INIT.print(F(" - inPin:"));
+        DBG_EE_INIT.print(inPin);      
+        DBG_EE_INIT.print(F(" - eventType:"));
+        DBG_EE_INIT.print(eventType);      
+        DBG_EE_INIT.print(F(" - outPin:"));
+        DBG_EE_INIT.print(outPin);      
+      #endif // DEBUG_EE_INIT
+      // Store only ... 
       dontStore = false;        
-      // - if eventType is from 0 to 3
+      // ... if eventType is from 0 to 3
       if (eventType > 3) {
          dontStore = true;
       }
-      // - if inPin is from 0 to MaxInputPins-1
+      // ... if inPin is from 0 to MaxInputPins-1
       if ( inPin > (MCP_IN_PINS-1) ) { 
         dontStore = true; 
       }
-      // - if outPin is from 0 to MaxOutputPins-1 if eventType != 0 (ON, OFF or TOGGLE)
+      // ... if outPin is from 0 to MaxOutputPins-1 if eventType != 0 (ON, OFF or TOGGLE)
       if ( eventType != 0 ) {                 
         if ( inPin > (MCP_OUT_PINS-1) ) { 
           dontStore = true; 
         } 
-      // - if outPin is from 0 to 63 if eventType == 0 (Special Event)    
+      // ... if outPin is from 0 to 63 if eventType == 0 (Special Event)    
       } else {          
         if (inPin > 63) { 
           dontStore = true; 
@@ -375,17 +399,19 @@ void copyFactoryDefaultsToEEPROM (void) {
       if (!dontStore){
         E2Val = (eventType << 6) | (outPin & 0x3f);
         E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
-        // Debug Output
-        DBG_EEPROM_INIT.print(F(" -> EEPROM - Adr:0x"));
-        if (E2Adr < 0x10) DBG_EEPROM_INIT.print(F("0"));
-        DBG_EEPROM_INIT.print(E2Adr,HEX);             
-        DBG_EEPROM_INIT.print(F(" - Value:0x"));
-        if (E2Val < 0x10) DBG_EEPROM_INIT.print(F("0"));
-        DBG_EEPROM_INIT.println(E2Val,HEX);    
+        #if DEBUG_EE_INIT
+          // Debug Output
+          DBG_EE_INIT.print(F(" -> Adr:0x"));
+          if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
+          DBG_EE_INIT.print(E2Adr,HEX);             
+          DBG_EE_INIT.print(F(", Value:0x"));
+          if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+          DBG_EE_INIT.println(E2Val,HEX);    
+        #endif // DEBUG_EE_INIT
         // Write to EEPROM
         EEPROM.write(E2Adr, E2Val);                
       } else {
-        DBG_EEPROM_INIT.println(F(" - ERROR - Value not stored"));
+        DBG_EE_INIT.println(F(" - ERROR - Value not stored"));
         DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
         DBG_ERROR.print(entryNum);       
         DBG_ERROR.print(F(" (eventType:"));
@@ -398,6 +424,80 @@ void copyFactoryDefaultsToEEPROM (void) {
       }
     }
   }    
+  // Roller-Configuration Table
+  // get Tablesize
+  FDTableSize = ReadFactoryDefaultTable (TABLE_INDEX_ROLLER, 0, 0) / 2;       
+  // Debug Output
+  #if DEBUG_EE_INIT    
+    DBG_EE_INIT.print(F("EE-Init - Number of Rollers"));
+    DBG_EE_INIT.print(F(" -> Adr:0x"));           
+    DBG_EE_INIT.print(EE_OFFSET_ROLL_NUM,HEX);
+    DBG_EE_INIT.print(F(", Value:0x"));
+    DBG_EE_INIT.println(FDTableSize,HEX);
+  #endif // DEBUG_EE_INIT
+  // Store Number of Rollers to EEPROM
+  EEPROM.write(EE_OFFSET_ROLL_NUM, FDTableSize);     
+  // Debug Output
+  #if DEBUG_EE_INIT
+    DBG_EE_INIT.print(F("EE-Init - Pointer to first Element of Roller Table"));    
+    DBG_EE_INIT.print(F(" -> Adr:0x"));           
+    DBG_EE_INIT.print(EE_OFFSET_ROLL_ADR,HEX);
+    DBG_EE_INIT.print(F(", Value:0x"));
+    DBG_EE_INIT.println(EE_OFFSET_BEGIN_VARSPACE,HEX);
+  #endif // DEBUG_EE_INIT
+  // Store Pointer to first Element of Roller Table 
+  EEPROM.write(EE_OFFSET_ROLL_ADR, EE_OFFSET_BEGIN_VARSPACE);
+  E2Adr = EE_OFFSET_BEGIN_VARSPACE;
+  // For each Entry
+  for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
+    upTime   = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);      
+    downTime = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
+    // Debug Output
+    #if DEBUG_EE_INIT      
+      DBG_EE_INIT.print(F("EE-Roller   - #:"));
+      DBG_EE_INIT.print(entryNum);            
+      DBG_EE_INIT.print(F(" - upTime:"));
+      DBG_EE_INIT.print(upTime);
+      DBG_EE_INIT.print(F(" - downTime:"));
+      DBG_EE_INIT.print(downTime);
+    #endif // DEBUG_EE_INIT
+    E2Val = upTime;
+    // Debug Output
+    #if DEBUG_EE_INIT      
+      DBG_EE_INIT.print(F(" -> Adr:0x"));      
+      DBG_EE_INIT.print(E2Adr,HEX);             
+      DBG_EE_INIT.print(F(", Value:0x"));
+      if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+      DBG_EE_INIT.print(E2Val,HEX);    
+    #endif // DEBUG_EE_INIT
+    // Write upTime to EEPROM
+    EEPROM.write(E2Adr, E2Val);
+    E2Adr++;
+    E2Val = downTime;
+    // Debug Output
+    #if DEBUG_EE_INIT      
+      DBG_EE_INIT.print(F(" - Adr:0x"));
+      if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
+      DBG_EE_INIT.print(E2Adr,HEX);             
+      DBG_EE_INIT.print(F(", Value:0x"));
+      if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+      DBG_EE_INIT.println(E2Val,HEX);
+    #endif // DEBUG_EE_INIT
+    // Write downTime to EEPROM
+    EEPROM.write(E2Adr, E2Val);
+    E2Adr++;    
+  }     
+  // Debug Output
+  #if DEBUG_EE_INIT    
+    DBG_EE_INIT.print(F("EE-Init - Pointer to first Element of Special Events Table"));    
+    DBG_EE_INIT.print(F(" -> Adr:0x"));           
+    DBG_EE_INIT.print(EE_OFFSET_SPECIAL_EVENT_ADR,HEX);
+    DBG_EE_INIT.print(F(", Value:0x"));
+    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+    DBG_EE_INIT.println(E2Adr,HEX);
+  #endif // DEBUG_EE_INIT
+  // Store Pointer to first Element of Special Events Table
+  EEPROM.write(EE_OFFSET_SPECIAL_EVENT_ADR, E2Adr);    
 }
 
 
@@ -668,11 +768,11 @@ void loop(){
   //ReadInputs();
   //ProcessIrq();
 
-  copyFactoryDefaultsToEEPROM();
+  copyFactoryDefaultsToE2PROM();
   delay (50000000L);
 
   if (millis() - g_lastOutTime > 50000000) {
-    copyFactoryDefaultsToEEPROM();
+    
     g_lastOutTime = millis();
     g_lastButtonState++;
     if (g_lastButtonState == 1){

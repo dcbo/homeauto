@@ -314,7 +314,39 @@ uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, ui
   }
   return (reqVal);
 }
- 
+
+void writeToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
+  // Debug Output
+  #if DEBUG_EE_INIT    
+    DBG_EE_INIT.print(F(" Adr:0x"));
+    if (E2Adr < 0x100) DBG_EE_INIT.print(F("0"));
+    if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
+    DBG_EE_INIT.print(E2Adr,HEX);             
+    DBG_EE_INIT.print(F(", Value:0x"));
+    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+    DBG_EE_INIT.println(E2Val,HEX);    
+  #endif // DEBUG_EE_INIT
+  // Write to EEPROM
+  EEPROM.write(E2Adr, E2Val);                
+}
+
+void writeToE2PROM (uint16_t E2Adr, uint16_t E2Val) {
+  // Debug Output
+  #if DEBUG_EE_INIT    
+    DBG_EE_INIT.print(F(" Adr:0x"));
+    if (E2Adr < 0x100) DBG_EE_INIT.print(F("0"));
+    if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
+    DBG_EE_INIT.print(E2Adr,HEX);             
+    DBG_EE_INIT.print(F(", Value:0x"));
+    if (E2Val < 0x1000) DBG_EE_INIT.print(F("0"));
+    if (E2Val < 0x100) DBG_EE_INIT.print(F("0"));
+    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
+    DBG_EE_INIT.println(E2Val,HEX);    
+  #endif // DEBUG_EE_INIT
+  // Write to EEPROM
+  EEPROM.write(E2Adr, E2Val);                
+}
+
 /************************************************************
  * Copy Factory Defaults from Flash to EEPROM
  ************************************************************
@@ -330,18 +362,35 @@ void copyFactoryDefaultsToE2PROM (void) {
   uint16_t E2Adr;
   uint8_t E2Val;  
   uint8_t entryNum;
+  uint16_t SCPointerAdr;  
   uint8_t inPin;  
   uint8_t eventType;  
   uint8_t outPin;    
   uint8_t FDTableSize;
   uint8_t FDTableNum;       
+  uint8_t SENum;          // # of Special Events
+  uint8_t SECount;        // Counter of Special Events
+  uint8_t SCSize;         // Size of Special Command
+  uint8_t SCBytes;        // Bytes of Special Command
+  uint8_t SCCount;        // Counter of Special Command
   uint8_t upTime;    
-  uint8_t downTime;    
+  uint8_t downTime;  
+  uint8_t rollerPin;
+  uint8_t closeTime;
+  
   // Clear E2PROM  
+  // Click, Double-Click, Long-Click Tables 
   DBG_EE_INIT.print(F(" -> E2PROM - Erase Click-Tables ..."));
-  for (E2Adr = EE_OFFSET_CLICK; E2Adr < (EE_OFFSET_CLICK + (MCP_IN_NUM * 16 * 3)); E2Adr++) {    
+  for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {    
     EEPROM.write(E2Adr, 0x00);
-  }  
+  }    
+  // Roller Table 
+  DBG_EE_INIT.print(F(" -> E2PROM - Erase Click-Tables ..."));
+  for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {    
+    EEPROM.write(E2Adr, 0xff);
+  }    
+  // Special Events (set first Elemet to 0)
+  EEPROM.write(EE_OFFSET_SPECIAL_EVENT, 0x0);    
   DBG_EE_INIT.println(F("Completed"));
   
   // Click-Configuration one Table each loop 
@@ -399,17 +448,7 @@ void copyFactoryDefaultsToE2PROM (void) {
       if (!dontStore){
         E2Val = (eventType << 6) | (outPin & 0x3f);
         E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
-        #if DEBUG_EE_INIT
-          // Debug Output
-          DBG_EE_INIT.print(F(" -> Adr:0x"));
-          if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
-          DBG_EE_INIT.print(E2Adr,HEX);             
-          DBG_EE_INIT.print(F(", Value:0x"));
-          if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-          DBG_EE_INIT.println(E2Val,HEX);    
-        #endif // DEBUG_EE_INIT
-        // Write to EEPROM
-        EEPROM.write(E2Adr, E2Val);                
+        writeToE2PROM(E2Adr, E2Val);
       } else {
         DBG_EE_INIT.println(F(" - ERROR - Value not stored"));
         DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
@@ -424,80 +463,90 @@ void copyFactoryDefaultsToE2PROM (void) {
       }
     }
   }    
+
   // Roller-Configuration Table
   // get Tablesize
-  FDTableSize = ReadFactoryDefaultTable (TABLE_INDEX_ROLLER, 0, 0) / 2;       
+  FDTableSize = ReadFactoryDefaultTable (TABLE_INDEX_ROLLER, 0, 0) / 4;       
   // Debug Output
   #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F("EE-Init - Number of Rollers"));
-    DBG_EE_INIT.print(F(" -> Adr:0x"));           
-    DBG_EE_INIT.print(EE_OFFSET_ROLL_NUM,HEX);
-    DBG_EE_INIT.print(F(", Value:0x"));
+    DBG_EE_INIT.print(F("Number of Rollers"));    
     DBG_EE_INIT.println(FDTableSize,HEX);
-  #endif // DEBUG_EE_INIT
-  // Store Number of Rollers to EEPROM
-  EEPROM.write(EE_OFFSET_ROLL_NUM, FDTableSize);     
-  // Debug Output
-  #if DEBUG_EE_INIT
-    DBG_EE_INIT.print(F("EE-Init - Pointer to first Element of Roller Table"));    
-    DBG_EE_INIT.print(F(" -> Adr:0x"));           
-    DBG_EE_INIT.print(EE_OFFSET_ROLL_ADR,HEX);
-    DBG_EE_INIT.print(F(", Value:0x"));
-    DBG_EE_INIT.println(EE_OFFSET_BEGIN_VARSPACE,HEX);
-  #endif // DEBUG_EE_INIT
-  // Store Pointer to first Element of Roller Table 
-  EEPROM.write(EE_OFFSET_ROLL_ADR, EE_OFFSET_BEGIN_VARSPACE);
-  E2Adr = EE_OFFSET_BEGIN_VARSPACE;
+  #endif // DEBUG_EE_INIT  
   // For each Entry
   for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
-    upTime   = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);      
-    downTime = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
+    rollerPin = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);      
+    upTime   = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);      
+    downTime = ReadFactoryDefaultTable (FDTableNum, 3, entryNum);
+    closeTime = ReadFactoryDefaultTable (FDTableNum, 4, entryNum);
     // Debug Output
     #if DEBUG_EE_INIT      
       DBG_EE_INIT.print(F("EE-Roller   - #:"));
       DBG_EE_INIT.print(entryNum);            
+      DBG_EE_INIT.print(F(" - Pin:"));
+      DBG_EE_INIT.print(rollerPin);
       DBG_EE_INIT.print(F(" - upTime:"));
       DBG_EE_INIT.print(upTime);
       DBG_EE_INIT.print(F(" - downTime:"));
       DBG_EE_INIT.print(downTime);
-    #endif // DEBUG_EE_INIT
-    E2Val = upTime;
-    // Debug Output
-    #if DEBUG_EE_INIT      
+      DBG_EE_INIT.print(F(" - closeTime:"));
+      DBG_EE_INIT.print(closeTime);
       DBG_EE_INIT.print(F(" -> Adr:0x"));      
-      DBG_EE_INIT.print(E2Adr,HEX);             
-      DBG_EE_INIT.print(F(", Value:0x"));
-      if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-      DBG_EE_INIT.print(E2Val,HEX);    
-    #endif // DEBUG_EE_INIT
+    #endif // DEBUG_EE_INIT       
+    // Write Roller outPin to EEPROM
+    E2Adr = EE_OFFSET_ROLLER;
+    E2Val = rollerPin;
+    writeToE2PROM(E2Adr, E2Val);           
     // Write upTime to EEPROM
-    EEPROM.write(E2Adr, E2Val);
-    E2Adr++;
-    E2Val = downTime;
-    // Debug Output
-    #if DEBUG_EE_INIT      
-      DBG_EE_INIT.print(F(" - Adr:0x"));
-      if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
-      DBG_EE_INIT.print(E2Adr,HEX);             
-      DBG_EE_INIT.print(F(", Value:0x"));
-      if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-      DBG_EE_INIT.println(E2Val,HEX);
-    #endif // DEBUG_EE_INIT
-    // Write downTime to EEPROM
-    EEPROM.write(E2Adr, E2Val);
     E2Adr++;    
-  }     
-  // Debug Output
+    E2Val = upTime;        
+    writeToE2PROM(E2Adr, E2Val);
+    // Write downTime to EEPROM
+    E2Adr++;
+    E2Val = downTime;    
+    writeToE2PROM(E2Adr, E2Val);
+    // Write closeTime to EEPROM
+    E2Adr++;
+    E2Val = closeTime;    
+    writeToE2PROM(E2Adr, E2Val);
+  }       
+  // Special Events 
+  // # of Special Events     
+  SENum = pgm_read_byte( &FactoryDefaultSpecialEventsTable[0]);
   #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F("EE-Init - Pointer to first Element of Special Events Table"));    
-    DBG_EE_INIT.print(F(" -> Adr:0x"));           
-    DBG_EE_INIT.print(EE_OFFSET_SPECIAL_EVENT_ADR,HEX);
-    DBG_EE_INIT.print(F(", Value:0x"));
-    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-    DBG_EE_INIT.println(E2Adr,HEX);
+    DBG_EE_INIT.print(F("EE-Init - Number of Special Events"));    
+    DBG_EE_INIT.print(SENum);
+    DBG_EE_INIT.print(F(" -> Adr:0x"));      
   #endif // DEBUG_EE_INIT
-  // Store Pointer to first Element of Special Events Table
-  EEPROM.write(EE_OFFSET_SPECIAL_EVENT_ADR, E2Adr);    
+  E2Adr = EE_OFFSET_SPECIAL_EVENT;
+  E2Val = SENum;
+  writeToE2PROM(E2Adr, E2Val);
+  // Store Special Events Table
+  E2Adr = EE_OFFSET_SPECIAL_EVENT + 1 + (SENum * 2);  
+  entryNum = 1;
+  for (SECount = 0; SECount < SENum; SECount++ ) {    
+    // Pointer to Elements
+    SCPointerAdr = EE_OFFSET_SPECIAL_EVENT + 1 + (SECount * 2);
+    #if DEBUG_EE_INIT    
+      DBG_EE_INIT.print(F("EE-Init - Pointer to Special Events #"));    
+      DBG_EE_INIT.print(SECount + 1);
+      DBG_EE_INIT.print(F(" -> "));      
+    #endif // DEBUG_EE_INIT
+    writeToE2PROM(SCPointerAdr, E2Adr);
+    // Get number of Byte for this Command
+    SCBytes = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
+    entryNum++;
+    #if DEBUG_EE_INIT    
+      DBG_EE_INIT.print(F("EE-Init -   Number of Bytes:"));    
+      DBG_EE_INIT.print(SCBytes);
+    #endif // DEBUG_EE_INIT
+    for (SCCount = 0; SCCount < SCBytes; SCCount++ ) {
+      E2Val = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
+      entryNum++;
+      writeToE2PROM(E2Adr, E2Val);
+      E2Adr++;
+    }
+  }
+  
 }
 
 

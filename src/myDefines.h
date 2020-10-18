@@ -28,10 +28,18 @@
 /********************************************************
  * Event Types
  ********************************************************/
-#define EVENT_SPECIAL         0   // followed Special Event ID
-#define EVENT_ON              1   // followed by Output which has to be toggled
-#define EVENT_OFF             2   // followed by Output which has to be toggled
-#define EVENT_TOGGLE          3   // followed by Output which has to be toggled
+#define EVENT_SPECIAL         (0<<5)   // followed Special Event ID
+#define EVENT_ON              (1<<5)   // followed by Output which has to be switched on  [0x20]
+#define EVENT_OFF             (2<<5)   // followed by Output which has to be switched off [0x40]
+#define EVENT_TOGGLE          (3<<5)   // followed by Output which has to be toggled      [0x60]
+#define EVENT_ROLLER_ACTION   (4<<5)   // followed by Roller MASK                         [0x80]  
+#define EVENT_ROLLER_UP       (5<<5)   // followed by Roller MASK                         [0xA0] 
+#define EVENT_ROLLER_DOWN     (6<<5)   // followed by Roller MASK                         [0xC0]        
+#define EVENT_ROLLER_STOP     (7<<5)   // followed by Roller MASK                         [0xE0] 
+// Special Commands 
+#define CMD_SPEED             0x00     // Wait 0.N Seconds after each following Command (max 25.5s) - 2 Byte Command
+#define CMD_WAIT              0x01     // Wait 0.N Seconds (max 25.5s) - 2 Byte Command
+ 
 
 /********************************************************
  * Table Indicies for ReadFactoryDefaultTable()
@@ -45,13 +53,14 @@
 /********************************************************
  * Roller Action Types
  ********************************************************/
-#define ROLL_STOP             0
-#define ROLL_START_UP         1
-#define ROLL_START_DOWN       2
-#define ROLL_START_OPPOSITE   3
-#define ROLL_START_SAME       4
-#define ROLL_CLICK            5
-#define ROLL_TICK             6
+#define ROLL_STOP             0     // Stop 
+#define ROLL_START_UP         1     // Start moving up
+#define ROLL_START_DOWN       2     // Start moving down
+#define ROLL_START_OPPOSITE   3     // Start moving opposite to last direction
+#define ROLL_START_SAME       4     // Start moving same as last direction
+#define ROLL_ACTION           5     // Roller Click State Machine (Start opposite - Stop - Start opposite - Stop...)
+#define ROLL_TICK             6     // Poll Roller (to Stop a moving Roller after Time)
+#define ROLLER_NC             0xff  // Roller not connected
 
 
 #endif  //  _MYDEFINES_H_

@@ -28,12 +28,12 @@
  ******************************************************** 
  * EEPROM Format: 
  * 0x000-0x01F: Click Table                            [EE_OFFSET_CLICK]
- * 0x010-0x03F: Double-Click Table                     [EE_OFFSET_CLICK_DOUBLE]
+ * 0x020-0x03F: Double-Click Table                     [EE_OFFSET_CLICK_DOUBLE]
  * 0x040-0x05F: Long-Click Table                       [EE_OFFSET_CLICK_LONG]
  * 0x060      : Number of Rollers                      [EE_OFFSET_ROLL_NUM]
- * 0x061      : Adress of Roller-Config Table [RRRR]   [EE_OFFSET_ROLL_ADR]
- * 0x062      : Number of Special Events               [EE_OFFSET_SPECIAL_EVENT_NUM]
- * 0x063      : Adress of Special Events-Table [SSSS]  [EE_OFFSET_SPECIAL_EVENT_ADR]
+ * 0x061+0x062: Adress of Roller-Config Table [RRRR]   [EE_OFFSET_ROLL_ADR]
+ * 0x063      : Number of Special Events               [EE_OFFSET_SPECIAL_EVENT_NUM]
+ * 0x064+0x065: Adress of Special Events-Table [SSSS]  [EE_OFFSET_SPECIAL_EVENT_ADR]
  *********************************************************
  * Roller-Config Table:                                [EE_OFFSET_BEGIN_VARSPACE]
  * [RRRR]     :  Two values for each Roller            
@@ -55,21 +55,17 @@
  *   ...
  ********************************************************/
 // Click Table: 32 Byte (Number of Input Pins)
-#define EE_OFFSET_CLICK          0
+#define EE_OFFSET_CLICK              0x000
 // Double-Click Table: 32 Byte (Number of Input Pins)
-#define EE_OFFSET_CLICK_DOUBLE       EE_OFFSET_CLICK + (MCP_IN_NUM * 16)
+#define EE_OFFSET_CLICK_DOUBLE       0x020    // EE_OFFSET_CLICK + (MCP_IN_NUM * 16)
 // Long-Click Table: 32 Byte (Number of Input Pins)
-#define EE_OFFSET_CLICK_LONG         EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-// Number of Rollers
-#define EE_OFFSET_ROLL_NUM           EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
-// Address of Pointer to first Element of Roller Table 
-#define EE_OFFSET_ROLL_ADR           EE_OFFSET_ROLL_NUM + 1
-// Number of Special Events
-#define EE_OFFSET_SPECIAL_EVENT_NUM  EE_OFFSET_ROLL_ADR + 1
-// Address of Pointer to first Element of Special Events Table
-#define EE_OFFSET_SPECIAL_EVENT_ADR  EE_OFFSET_SPECIAL_EVENT_NUM + 1
-// Address of first Element in Variable EEPROM Space = first Element of Roller Table 
-#define EE_OFFSET_BEGIN_VARSPACE     EE_OFFSET_SPECIAL_EVENT_ADR + 1
+#define EE_OFFSET_CLICK_LONG         0x040    // EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+// Roller Table (4 Rollers, 3 Byte each: 12 Byte)
+#define EE_OFFSET_ROLLER             0x060    // EE_OFFSET_CLICK_DOUBLE + (MCP_IN_NUM * 16)
+// Special Events  
+#define EE_OFFSET_SPECIAL_EVENT      0x070    // EE_OFFSET_ROLLER + 16
+
+
 
 
 /********************************************************
@@ -180,6 +176,14 @@
  * MCP Reset Pin (goes to all MCP23017-/Reset)
  ************************************************************/ 
 #define MCP_RST_PIN           7
+
+/************************************************************
+ * Mask Values for Roller Selection
+ ************************************************************/ 
+#define MASK_1        0x01     // 0000 0001
+#define MASK_2        0x02     // 0000 0010
+#define MASK_3        0x04     // 0000 0100
+#define MASK_4        0x08     // 0000 1000
 
 
 #endif // _MYHWCONFIG_H_

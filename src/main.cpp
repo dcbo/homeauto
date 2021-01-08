@@ -693,6 +693,30 @@ uint8_t getActionFromEEprom (uint8_t clickType, uint8_t pinNumber) {
   return (E2Val); 
 }
 
+/************************************************************
+ * getRollerFromEEprom
+ ************************************************************
+ * Read Roller Config from EEPROM
+ * @param[in] roller Number of the Roller (1 to 4)
+ * @param[out] upPin
+ * @param[out] downPin
+ * @param[out] upTime
+ * @param[out] downTime
+ * @param[out] defaultTime
+ ************************************************************/
+void getRollerFromEEprom (uint8_t roller, uint8_t& upPin, uint8_t& downPin,
+                          uint8_t& upTime, uint8_t& downTime, uint8_t&  defaultTime) {
+  uint16_t E2Adr;  
+  if (roller<5) {
+    E2Adr = EE_OFFSET_ROLLER + ((roller-1) * 4);  
+    upPin = readByteFromE2PROM (E2Adr);    
+    downPin = upPin + 1;
+    upTime = readByteFromE2PROM (E2Adr+1);    
+    downTime = readByteFromE2PROM (E2Adr+2);    
+    defaultTime = readByteFromE2PROM (E2Adr+3);            
+  }
+}
+
 
 /********************************************************
  * Special Events Table
@@ -1171,6 +1195,39 @@ void printClickCommandTable (uint8_t cType) {
   }  
 }
 
+
+/************************************************************
+ * printRollerConfiguration
+ ************************************************************  
+ * Prints the Roller Configuration stored in EEPROM 
+ ************************************************************/
+void printRollerConfiguration(void) {
+  uint8_t i;     
+  uint8_t upPin;
+  uint8_t downPin;
+  uint8_t upTime; 
+  uint8_t downTime;
+  uint8_t defaultTime;
+  for (i = 1; i < 5; i++) {     
+    getRollerFromEEprom  (i, upPin, downPin, upTime, downTime, defaultTime);
+    DBG.print(F(" - Roller "));
+    DBG.print(i);
+    DBG.print(F(" - Pin Up: "));
+    DBG.print(upPin);
+    DBG.print(F(" - Pin Down: "));
+    DBG.print(downPin);
+    DBG.print(F(" - Up-Time: "));
+    DBG.print(upTime);    
+    DBG.print(F(" - Down-Time: "));
+    DBG.print(downTime);    
+    DBG.print(F(" - Default-Time: "));        
+    DBG.print(defaultTime);
+    DBG.println(F(""));
+  }  
+}
+
+
+
 /************************************************************
  * printConfig
  ************************************************************ * 
@@ -1189,6 +1246,8 @@ void printConfig (void) {
   printClickCommandTable(2);
   // Roller Configuration
   DBG.println(F("Roller Configuration:"));  
+  printRollerConfiguration();
+  
 }
 
 

@@ -1,3 +1,10 @@
+# define STATEUP    0B10101010
+# define STATEDOWN  0B01010101
+# define STATEDOWN2 0B01000000
+# define STATESTOP  0B00000000
+# define LED_ON     digitalWrite(13, HIGH)
+# define LED_OFF    digitalWrite(13, LOW)
+
 /************************************************************
  * Darios Homeautomatisation v2
  ************************************************************
@@ -25,6 +32,8 @@
 #define DEBUG                 1  // Debug main 
 #define DEBUG_ERROR           1  // Error Messages
 #define DEBUG_EE_INIT         1  // Debug EEPROM Init [1142 Byte]
+#define DEBUG_EE_READ         0  // Debug EEPROM Read Access
+#define DEBUG_EE_WRITE        0  // Debug EEPROM Write Access
 #define DEBUG_SETUP           1  // Debug Setup 
 #define DEBUG_SETUP_MCP       0  // Debug Setup MCP   [386 Byte]
 #define DEBUG_IRQ             1  // Debug IRQ
@@ -37,12 +46,12 @@
  * Program Configuration Control
  ************************************************************/ 
 #define DO_HEARTBEAT  1
-  #define HEARTBEAT 5000             // Print State Interval
+#define HEARTBEAT     5000             // Print State Interval
 #define DO_SPEED      0
-  #define SPEEDRUNS     10000
-  #define SPEEDUSDIVISOR (SPEEDRUNS / 1000)
-  #define SPEEDBEAT     1000
-  #define IRQ_RESETINTERVAL 100
+#define SPEEDRUNS     10000
+#define SPEEDUSDIVISOR (SPEEDRUNS / 1000)
+#define SPEEDBEAT     1000
+#define IRQ_RESETINTERVAL 100
 
 /************************************************************
  * Debugging Macros use Macro "DBG...." instead of "Serial"
@@ -58,6 +67,8 @@
 #define DBG_STATE         if(DEBUG_STATE)Serial 
 #define DBG_STATE_CHANGE  if(DEBUG_STATE_CHANGE)Serial 
 #define DBG_EE_INIT       if(DEBUG_EE_INIT)Serial 
+#define DBG_EE_WRITE      if(DEBUG_EE_WRITE)Serial 
+#define DBG_EE_READ       if(DEBUG_EE_READ)Serial 
 
 /************************************************************
  * Global Vars
@@ -239,6 +250,9 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(INT_PIN), iqrHandler, FALLING);
   DBG_SETUP.println(F(" done."));  
   delay(DEBUG_SETUP_DELAY);
+  
+  // Debug LED
+  pinMode(13, OUTPUT);
 
   // Set I2C Speed
   DBG_SETUP.print(F("- I2C: Set Speed to "));
@@ -315,47 +329,131 @@ uint8_t  ReadFactoryDefaultTable (uint8_t FDTableNum, uint8_t FDTableValType, ui
   return (reqVal);
 }
 
-void writeToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
-  // Debug Output
-  #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F(" Adr:0x"));
-    if (E2Adr < 0x100) DBG_EE_INIT.print(F("0"));
-    if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
-    DBG_EE_INIT.print(E2Adr,HEX);             
-    DBG_EE_INIT.print(F(", Value:0x"));
-    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-    DBG_EE_INIT.println(E2Val,HEX);    
-  #endif // DEBUG_EE_INIT
-  // Write to EEPROM
-  EEPROM.write(E2Adr, E2Val);                
+uint8_t readByteFromE2PROM (uint16_t E2Adr) {
+  uint8_t E2Val;
+  // read from EEPROM  
+  if (E2Adr < EEPROM.length()){
+    E2Val = EEPROM.read (E2Adr);  
+    // Debug Output
+    #if DEBUG_EE_READ
+      DBG_EE_READ.print(F(" Adr:0x"));
+      if (E2Adr < 0x100) DBG_EE_READ.print(F("0"));
+      if (E2Adr < 0x10) DBG_EE_READ.print(F("0"));
+      DBG_EE_READ.print(E2Adr,HEX);             
+      DBG_EE_READ.print(F(", Value:0x"));
+      if (E2Val < 0x10) DBG_EE_READ.print(F("0"));
+      DBG_EE_READ.println(E2Val,HEX);    
+    #endif // DEBUG_EE_INIT
+    return (E2Val);
+  } else {
+    DBG_ERROR.print(F("ERROR: readByteFromE2PROM failed: Address out of scope: "));
+    DBG_ERROR.println(E2Adr);
+    return (0);
+  }   
 }
 
-void writeToE2PROM (uint16_t E2Adr, uint16_t E2Val) {
+void writeToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
   // Debug Output
-  #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F(" Adr:0x"));
-    if (E2Adr < 0x100) DBG_EE_INIT.print(F("0"));
-    if (E2Adr < 0x10) DBG_EE_INIT.print(F("0"));
-    DBG_EE_INIT.print(E2Adr,HEX);             
-    DBG_EE_INIT.print(F(", Value:0x"));
-    if (E2Val < 0x1000) DBG_EE_INIT.print(F("0"));
-    if (E2Val < 0x100) DBG_EE_INIT.print(F("0"));
-    if (E2Val < 0x10) DBG_EE_INIT.print(F("0"));
-    DBG_EE_INIT.println(E2Val,HEX);    
+  #if DEBUG_EE_WRITE
+    DBG_EE_WRITE.print(F(" Adr:0x"));
+    if (E2Adr < 0x100) DBG_EE_WRITE.print(F("0"));
+    if (E2Adr < 0x10) DBG_EE_WRITE.print(F("0"));
+    DBG_EE_WRITE.print(E2Adr,HEX);             
+    DBG_EE_WRITE.print(F(", Value:0x"));
+    if (E2Val < 0x10) DBG_EE_WRITE.print(F("0"));
+    DBG_EE_WRITE.println(E2Val,HEX);    
   #endif // DEBUG_EE_INIT
   // Write to EEPROM
-  EEPROM.write(E2Adr, E2Val);                
+  if (E2Adr < EEPROM.length()){
+    EEPROM.write(E2Adr, E2Val);                
+  } else {
+    DBG_ERROR.print(F("ERROR: writeToE2PROM failes: Address out of scope: "));
+    DBG_ERROR.println(E2Adr);
+  }
 }
+
+
+/*
+void writeToE2PROM (uint16_t E2Adr, uint16_t E2Val) {
+  // Debug Output
+  #if DEBUG_EE_WRITE
+    DBG_EE_WRITE.print(F(" Adr:0x"));
+    if (E2Adr < 0x100) DBG_EE_WRITE.print(F("0"));
+    if (E2Adr < 0x10) DBG_EE_WRITE.print(F("0"));
+    DBG_EE_WRITE.print(E2Adr,HEX);             
+    DBG_EE_WRITE.print(F(", Value:0x"));
+    if (E2Val < 0x1000) DBG_EE_WRITE.print(F("0"));
+    if (E2Val < 0x100) DBG_EE_WRITE.print(F("0"));
+    if (E2Val < 0x10) DBG_EE_WRITE.print(F("0"));
+    DBG_EE_WRITE.println(E2Val,HEX);    
+  #endif // DEBUG_EE_INIT
+  // Write to EEPROM  
+  if (E2Adr < (EEPROM.length()-1){
+    EEPROM.write(E2Adr, E2Val);                
+  } else {
+    DBG_ERROR.print(F("ERROR: writeToE2PROM[16 Bit] failed: Address out of scope: "));
+    DBG_ERROR.println(E2Adr);
+  }
+}
+*/
+
 
 /************************************************************
  * Copy Factory Defaults from Flash to EEPROM
  ************************************************************
- * Convert 3 Tables and store Data to E2PROM
- *  - FactoryDefaultClickTable[][3]
- *  - FactoryDefaultDoubleClickTable[][3]
- *  - FactoryDefaultLongClickTable[][3]
- ************************************************************ 
- * See mySettings.h forfurther Documentation *
+ * - Convert 3 Tables and store Data to E2PROM
+ *   - FactoryDefaultClickTable[][3]
+ *   - FactoryDefaultDoubleClickTable[][3]
+ *   - FactoryDefaultLongClickTable[][3]
+ * - Store Roller Config to EEPROM
+ * - Store Special Events to EEPROM
+ **********************************************
+ * EEPROM Layout:
+ **********************************************
+ * - EEPROM Size is 1024 Byte
+ * - Click, Double-Click, Long-Click Events are 
+ *   stored in three seperate tables.
+ *   - We have 32 Inputs, so each table contains 32 actions
+ *     First Table-Entry corresponds to First Input
+ *   - Size of each Table Entry is 1 BYTE
+ *     - Upper three Bit ((value & 0xE0)>>6) 
+ *       containing the Event Type (0 to 7) 
+ *       EVENT_SPECIAL, EVENT_TOGGLE, EVENT_ON, EVENT_OFF,
+ *       EVENT_ROLLER_ACTION, EVENT_ROLLER_UP, EVENT_ROLLER_DOWN, EVENT_ROLLER_STOP
+ *     - Lower six Bit (value & 0x3F) 
+ *       containing the Parameter for the Event. In case of 
+ *       - EVENT_SPECIAL 
+ *         -> # of Special Event 
+ *       - EVENT_TOGGLE, EVENT_ON and EVENT_OFF 
+ *         -> Output Pin
+ *       - EVENT_ROLLER_ACTION, EVENT_ROLLER_UP, EVENT_ROLLER_DOWN and EVENT_ROLLER_STOP
+ *         -> Affected Roller Number as Bitmask (0b0011 = Roller 1+2) (0b1100 = Roller 3+4)
+ **********************************************
+ * - Roller Table
+ *   four values for each roller are stored
+ *   - PinUp: Output Pin motor UP (motor DOWN must be PinUp+1)
+ *   - upTime: maximum time to run the roller comlete up [*500ms]
+ *   - downTime: maximum time to run the roller comlete down [*500ms]
+ *   - closeTime: time to run the roller down to night position [*500ms]
+ **********************************************
+ * - Special Event Table
+ *   Special Event ar stored as follows
+ *   - [0x70]         : Number of Special Events
+ *   - [0x71]         : Number of Bytes for Special Event 1 = N1
+ *   - [0x72, ...]    : all Bytes for Special Event 1 
+ *   - [0x71 + N1 + 1]: Number of Bytes for Special Event 2 
+ *   - [0x71 + N1 + 2]: all Bytes for Special Event 2 
+ ********************************************************
+ * - For all three Tables 96 Byte of EEPROM is needed.
+ *   - The following EEPROM Adresses are used:
+ *     - 0x00: Click on Input Pin 1
+ *     - 0x20: Double Click on Input Pin 1
+ *     - 0x40: Long Click on Input Pin 1
+ *     - 0x5f: Long Click on Input Pin 32
+ *     - 0x60: Roller Table
+ *     - 0x70: Special Events Table
+ ********************************************************
+ * See mySettings.h forfurther Documentation 
  ************************************************************/ 
 void copyFactoryDefaultsToE2PROM (void) {
   boolean dontStore;
@@ -369,29 +467,32 @@ void copyFactoryDefaultsToE2PROM (void) {
   uint8_t FDTableSize;
   uint8_t FDTableNum;       
   uint8_t SENum;          // # of Special Events
-  uint8_t SECount;        // Counter of Special Events
-  uint8_t SCSize;         // Size of Special Command
+  uint8_t SECount;        // Counter of Special Events  
   uint8_t SCBytes;        // Bytes of Special Command
   uint8_t SCCount;        // Counter of Special Command
   uint8_t upTime;    
   uint8_t downTime;  
   uint8_t rollerPin;
   uint8_t closeTime;
+  uint8_t setupValue;    
   
   // Clear E2PROM  
   // Click, Double-Click, Long-Click Tables 
-  DBG_EE_INIT.print(F(" -> E2PROM - Erase Click-Tables ..."));
+  DBG_EE_INIT.print(F(" -> E2PROM - Erase Click, Double-Click and Long-ClickTables ... "));
   for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {    
-    EEPROM.write(E2Adr, 0x00);
+    writeToE2PROM(E2Adr, 0x00);
   }    
+  DBG_EE_INIT.println(F("done."));
   // Roller Table 
-  DBG_EE_INIT.print(F(" -> E2PROM - Erase Click-Tables ..."));
-  for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {    
-    EEPROM.write(E2Adr, 0xff);
+  DBG_EE_INIT.print(F(" -> E2PROM - Erase Roller-Tables ... "));
+  for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {        
+    writeToE2PROM(E2Adr, 0xff);
   }    
+  DBG_EE_INIT.println(F("done."));
   // Special Events (set first Elemet to 0)
-  EEPROM.write(EE_OFFSET_SPECIAL_EVENT, 0x0);    
-  DBG_EE_INIT.println(F("Completed"));
+  DBG_EE_INIT.print(F(" -> E2PROM - Erase Special Event Table ... "));
+  writeToE2PROM(EE_OFFSET_SPECIAL_EVENT, 0x0);    
+  DBG_EE_INIT.println(F("done."));
   
   // Click-Configuration one Table each loop 
   // - Loop 0: ClickTable 
@@ -401,50 +502,41 @@ void copyFactoryDefaultsToE2PROM (void) {
     // get Tablesize (FDTableValType = 0 returns Tablesize)
     FDTableSize = ReadFactoryDefaultTable (FDTableNum, 0, 0) / 3;     
     #if DEBUG_EE_INIT
-      if (FDTableNum==0) {
-        DBG_EE_INIT.println(F("EE-Init - Click-Table:"));
-      } else if (FDTableNum==1) {
-        DBG_EE_INIT.println(F("EE-Init - Double-Click-Table:"));
-      } else {
-        DBG_EE_INIT.println(F("EE-Init - Long-Click-Table:"));
+      if (FDTableNum==0) {        
+        DBG_EE_INIT.println(F(" -> E2PROM - Click-Table:"));
+      } else if (FDTableNum==1) {        
+        DBG_EE_INIT.println(F(" -> E2PROM - Double-Click-Table:"));
+      } else {        
+        DBG_EE_INIT.println(F(" -> E2PROM - Long-Click-Table:"));
       }
     #endif // DEBUG_EE_INIT
     // For each Entry
     for (entryNum = 0; entryNum < FDTableSize; entryNum++ ) {
       inPin     = ReadFactoryDefaultTable (FDTableNum, 1, entryNum);      
-      eventType = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);
-      outPin    = ReadFactoryDefaultTable (FDTableNum, 3, entryNum);
-      #if DEBUG_EE_INIT
-        DBG_EE_INIT.print(F("EE-Init   - #:"));
-        DBG_EE_INIT.print(entryNum);      
-        DBG_EE_INIT.print(F(" - inPin:"));
+      setupValue = ReadFactoryDefaultTable (FDTableNum, 2, entryNum);      
+      eventType =  ((setupValue & 0xE0)>>5);
+      outPin = (setupValue & 0x3F) ;
+      #if DEBUG_EE_INIT        
+        DBG_EE_INIT.print(F("    - inPin: "));
         DBG_EE_INIT.print(inPin);      
-        DBG_EE_INIT.print(F(" - eventType:"));
+        DBG_EE_INIT.print(F(" - setupValue: "));
+        DBG_EE_INIT.print(setupValue);      
+        DBG_EE_INIT.print(F(" - eventType: "));
         DBG_EE_INIT.print(eventType);      
-        DBG_EE_INIT.print(F(" - outPin:"));
-        DBG_EE_INIT.print(outPin);      
+        DBG_EE_INIT.print(F(" - outPin: "));
+        DBG_EE_INIT.println(outPin);      
       #endif // DEBUG_EE_INIT
       // Store only ... 
       dontStore = false;        
-      // ... if eventType is from 0 to 3
-      if (eventType > 3) {
+      // ... if eventType is from 0 to 7
+      if (eventType > 7) {
          dontStore = true;
       }
-      // ... if inPin is from 0 to MaxInputPins-1
-      if ( inPin > (MCP_IN_PINS-1) ) { 
+      // ... if inPin is from 0 to 31
+      if ( inPin > (31) ) { 
         dontStore = true; 
-      }
-      // ... if outPin is from 0 to MaxOutputPins-1 if eventType != 0 (ON, OFF or TOGGLE)
-      if ( eventType != 0 ) {                 
-        if ( inPin > (MCP_OUT_PINS-1) ) { 
-          dontStore = true; 
-        } 
-      // ... if outPin is from 0 to 63 if eventType == 0 (Special Event)    
-      } else {          
-        if (inPin > 63) { 
-          dontStore = true; 
-        } 
-      }    
+      }      
+      // ... if outPin is from 0 to 63 if eventType == 0 (Special Event)
       if (!dontStore){
         E2Val = (eventType << 6) | (outPin & 0x3f);
         E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
@@ -453,11 +545,11 @@ void copyFactoryDefaultsToE2PROM (void) {
         DBG_EE_INIT.println(F(" - ERROR - Value not stored"));
         DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
         DBG_ERROR.print(entryNum);       
-        DBG_ERROR.print(F(" (eventType:"));
+        DBG_ERROR.print(F(" (eventType: "));
         DBG_ERROR.print(eventType);       
-        DBG_ERROR.print(F(" - inPin:"));
+        DBG_ERROR.print(F(" - inPin: "));
         DBG_ERROR.print(inPin);       
-        DBG_ERROR.print(F(" - outPin:"));
+        DBG_ERROR.print(F(" - outPin: "));
         DBG_ERROR.print(outPin);       
         DBG_ERROR.println(F(")"));
       }
@@ -467,9 +559,11 @@ void copyFactoryDefaultsToE2PROM (void) {
   // Roller-Configuration Table
   // get Tablesize
   FDTableSize = ReadFactoryDefaultTable (TABLE_INDEX_ROLLER, 0, 0) / 4;       
+  E2Adr = EE_OFFSET_ROLLER;
   // Debug Output
   #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F("Number of Rollers"));    
+    DBG_EE_INIT.println(F(" -> E2PROM - Roller-Configuration Table:"));  
+    DBG_EE_INIT.print(F("    - Number of Rollers: "));    
     DBG_EE_INIT.println(FDTableSize,HEX);
   #endif // DEBUG_EE_INIT  
   // For each Entry
@@ -480,42 +574,44 @@ void copyFactoryDefaultsToE2PROM (void) {
     closeTime = ReadFactoryDefaultTable (FDTableNum, 4, entryNum);
     // Debug Output
     #if DEBUG_EE_INIT      
-      DBG_EE_INIT.print(F("EE-Roller   - #:"));
-      DBG_EE_INIT.print(entryNum);            
-      DBG_EE_INIT.print(F(" - Pin:"));
-      DBG_EE_INIT.print(rollerPin);
-      DBG_EE_INIT.print(F(" - upTime:"));
-      DBG_EE_INIT.print(upTime);
-      DBG_EE_INIT.print(F(" - downTime:"));
-      DBG_EE_INIT.print(downTime);
-      DBG_EE_INIT.print(F(" - closeTime:"));
-      DBG_EE_INIT.print(closeTime);
-      DBG_EE_INIT.print(F(" -> Adr:0x"));      
+      DBG_EE_INIT.print(F("    - Roller "));
+      DBG_EE_INIT.println(entryNum);            
+      DBG_EE_INIT.print(F("      - PinUp: "));
+      DBG_EE_INIT.println(rollerPin);
+      DBG_EE_INIT.print(F("      - upTime: "));
+      DBG_EE_INIT.print(upTime/2);
+      DBG_EE_INIT.println(F("s"));
+      DBG_EE_INIT.print(F("      - downTime: "));
+      DBG_EE_INIT.print(downTime/2);
+      DBG_EE_INIT.println(F("s"));
+      DBG_EE_INIT.print(F("      - closeTime: "));      
+      DBG_EE_INIT.print(closeTime/2);      
+      DBG_EE_INIT.println(F("s"));
     #endif // DEBUG_EE_INIT       
-    // Write Roller outPin to EEPROM
-    E2Adr = EE_OFFSET_ROLLER;
+    // Write Roller outPin to EEPROM    
     E2Val = rollerPin;
     writeToE2PROM(E2Adr, E2Val);           
-    // Write upTime to EEPROM
     E2Adr++;    
+    // Write upTime to EEPROM    
     E2Val = upTime;        
     writeToE2PROM(E2Adr, E2Val);
-    // Write downTime to EEPROM
     E2Adr++;
+    // Write downTime to EEPROM    
     E2Val = downTime;    
     writeToE2PROM(E2Adr, E2Val);
-    // Write closeTime to EEPROM
     E2Adr++;
+    // Write closeTime to EEPROM    
     E2Val = closeTime;    
     writeToE2PROM(E2Adr, E2Val);
+    E2Adr++;
   }       
   // Special Events 
   // # of Special Events     
   SENum = pgm_read_byte( &FactoryDefaultSpecialEventsTable[0]);
   #if DEBUG_EE_INIT    
-    DBG_EE_INIT.print(F("EE-Init - Number of Special Events"));    
-    DBG_EE_INIT.print(SENum);
-    DBG_EE_INIT.print(F(" -> Adr:0x"));      
+    DBG_EE_INIT.println(F("EE-Init - Special Events"));
+    DBG_EE_INIT.print(F("   - Number of Special Events: "));
+    DBG_EE_INIT.println(SENum);    
   #endif // DEBUG_EE_INIT
   E2Adr = EE_OFFSET_SPECIAL_EVENT;
   E2Val = SENum;
@@ -527,26 +623,54 @@ void copyFactoryDefaultsToE2PROM (void) {
     // Pointer to Elements
     SCPointerAdr = EE_OFFSET_SPECIAL_EVENT + 1 + (SECount * 2);
     #if DEBUG_EE_INIT    
-      DBG_EE_INIT.print(F("EE-Init - Pointer to Special Events #"));    
-      DBG_EE_INIT.print(SECount + 1);
-      DBG_EE_INIT.print(F(" -> "));      
-    #endif // DEBUG_EE_INIT
-    writeToE2PROM(SCPointerAdr, E2Adr);
+      DBG_EE_INIT.print(F("   - Special Event "));
+      DBG_EE_INIT.println(SECount + 1);
+      DBG_EE_INIT.print(F("     - Pointer: "));
+      DBG_EE_INIT.println(E2Adr);
+    #endif // DEBUG_EE_INIT    
     // Get number of Byte for this Command
     SCBytes = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
     entryNum++;
     #if DEBUG_EE_INIT    
-      DBG_EE_INIT.print(F("EE-Init -   Number of Bytes:"));    
-      DBG_EE_INIT.print(SCBytes);
+      DBG_EE_INIT.print(F("     - Number of Bytes: "));    
+      DBG_EE_INIT.println(SCBytes);
+      DBG_EE_INIT.print(F("     - Data: "));    
     #endif // DEBUG_EE_INIT
+    writeToE2PROM(SCPointerAdr, E2Adr);
     for (SCCount = 0; SCCount < SCBytes; SCCount++ ) {
       E2Val = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
       entryNum++;
+      if  (SCCount != 0) {
+        DBG_EE_INIT.print(F(", "));    
+      }      
+      DBG_EE_INIT.print(E2Val);      
       writeToE2PROM(E2Adr, E2Val);
       E2Adr++;
     }
-  }
-  
+  }  
+}
+
+/************************************************************
+ * get Action from EEPROM
+ ************************************************************
+ * Determine what to do on a Click-Event occured
+ * Input:
+ * - click-type: BUTTON_CLICK, BUTTON_CLICK_DOUBLE or BUTTON_CLICK_LONG
+ * - pinNumber: Number of the input Pin where the Click occured
+ * Returns:
+ * - EVENT [0-7] and Parameter [0-31]
+ * - Encoded to one Byte (EVENT) << 5 + Parameter  
+ ************************************************************/
+uint8_t getActionFromEEprom (uint8_t clickType, uint8_t pinNumber) {
+  uint16_t E2Adr;
+  uint8_t E2Val;    
+  E2Adr = pinNumber + (clickType * MCP_IN_PINS);
+  E2Val = 0;
+  // Check Ranges
+  if ((pinNumber < MCP_IN_PINS) && (clickType < BUTTON_CLICK_LONG + 1)) {
+    E2Val = EEPROM.read (E2Adr);
+  } 
+  return (E2Val); 
 }
 
 
@@ -559,8 +683,8 @@ void SetOutputs(uint32_t newOutState) {
   // Output only if state has changed
   if (g_lastOutState != newOutState) {
     g_lastOutState = newOutState;
-    mcp[2].writeGPIOAB((uint16_t)(newOutState && 0xffff));
-    mcp[3].writeGPIOAB((uint16_t)(newOutState >> 16));
+    mcp[2].writeGPIOAB((uint16_t)(newOutState & 0xffff));
+    mcp[3].writeGPIOAB((uint16_t)((newOutState >> 16) & 0xffff));    
   }
 }
 
@@ -747,7 +871,27 @@ void ProcessIrq(void) {
   }
 } 
 
+void RollerUp(){  
+  DBG.println(F("Moving Up"));
+  // Start Moving Down
+  LED_ON;
+  mcp[2].writeGPIOAB(STATEUP);
+  delay (25000);
+  mcp[2].writeGPIOAB(STATESTOP);
+  LED_OFF;
+}
 
+void RollerDown(){  
+  DBG.println(F("Moving DOWN"));
+  // Start Moving Down
+  LED_ON;
+  mcp[2].writeGPIOAB(STATEDOWN);
+  delay (14000);
+  mcp[2].writeGPIOAB(STATEDOWN2);
+  delay (4000);  
+  mcp[2].writeGPIOAB(STATESTOP);
+  LED_OFF;
+}
 
 /************************************************************
  * Scan Input Buttons
@@ -771,6 +915,7 @@ void ScanButtons(void) {
     g_irqFlag = false;    
     g_buttonPollingActive = true;
     g_lastButtonIrqTime = millis();
+  
   // If scan is still active [2]
   } else if (g_buttonPollingActive) {
     // scan every BUTTON_SCANINT[ms]  [3]
@@ -779,6 +924,7 @@ void ScanButtons(void) {
     }
   }
   
+  // Do a scan
   if (dothisscan) {     
     // Read all GPIO Registers        
     thisstate = (uint32_t)mcp[0].readGPIOAB() + ((uint32_t)mcp[1].readGPIOAB() << 16);
@@ -803,7 +949,7 @@ void ScanButtons(void) {
         }
       }
     }    
-  }
+  } // dothisscan
 }
 
 
@@ -816,8 +962,20 @@ void loop(){
   //SpeedTest();
   //ReadInputs();
   //ProcessIrq();
+  while (false){
+    DBG.println(F("RollerTest"));
+    RollerUp();
+    delay(30000);
+    RollerDown();
+    delay(30000);   
+  }
+  DBG.print(F("EEPROM.length(): "));
+  DBG.println(EEPROM.length());
 
+
+  DBG.println(F("copyFactoryDefaultsToE2PROM"));
   copyFactoryDefaultsToE2PROM();
+  DBG.println(F("delay (50000000L);"));
   delay (50000000L);
 
   if (millis() - g_lastOutTime > 50000000) {

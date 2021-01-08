@@ -119,11 +119,11 @@
  * - We have 32 Inputs, so each table contains 32 actions
  *   First Table-Entry corresponds to First Input
  * - Size of each Table Entry is 1 Byte
- *   - Upper three Bit ((value && 0xE0)>>6) 
+ *   - Upper three Bit ((value & 0xE0)>>6) 
  *     containing the Event Type EVENT_SPECIAL, EVENT_TOGGLE, 
  *     EVENT_ON, EVENT_OFF, EVENT_ROLLER_ACTION, EVENT_ROLLER_UP, 
  *     EVENT_ROLLER_DOWN, EVENT_ROLLER_STOP
- *   - Lower six Bit (value && 0x3F) 
+ *   - Lower six Bit (value & 0x3F) 
  *     containing the Parameter for the Event. In case of 
  *     - EVENT_TOGGLE, EVENT_ON and EVENT_OFF -> Output Pin
  *     - EVENT_SPECIAL -> # of Special Event [TBD]

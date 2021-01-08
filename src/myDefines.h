@@ -28,6 +28,7 @@
 /********************************************************
  * Event Types
  ********************************************************/
+#define EVENT_NULL            (0<<5)   // not configured
 #define EVENT_SPECIAL         (0<<5)   // followed Special Event ID
 #define EVENT_ON              (1<<5)   // followed by Output which has to be switched on  [0x20]
 #define EVENT_OFF             (2<<5)   // followed by Output which has to be switched off [0x40]
@@ -42,7 +43,7 @@
  
 
 /********************************************************
- * Table Indicies for ReadFactoryDefaultTable()
+ * Table Indicies for readFactoryDefaultTable()
  ********************************************************/
 #define TABLE_INDEX_CLICK          0
 #define TABLE_INDEX_CLICK_DOUBLE   1

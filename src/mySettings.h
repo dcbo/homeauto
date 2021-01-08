@@ -110,8 +110,6 @@
  ********************************************************
  * Main Config is done here. (Factory Defaults)
  * Values are written in Tables in EEPROM during boot.
- * ToDo:
- * - Implement Function to alter Configuration
  ******************************************************** 
  * EEPROM Format: (EEPROM Size is 1024 Byte)
  * - Click, Double-Click, Long-Click Events are 
@@ -152,10 +150,10 @@
 
 // BUTTON_CLICK - Events
 static const uint8_t FactoryDefaultClickTable[][2] PROGMEM = {            
-    {in_3R1,  EVENT_ROLLER_ACTION + MASK_1},      // Rollade Kinderzimmer Bett      -> Roller-Action (Bett)
-    {in_3R2,  EVENT_ROLLER_ACTION + MASK_2},      // Rollade Kinderzimmer Schrank   -> Roller-Action (Schrank)
-    {in_2R1,  EVENT_ROLLER_ACTION + MASK_3},      // Rollade Schlafzimmer Yvonne    -> Roller-Action (Yvonne)
-    {in_2R2,  EVENT_ROLLER_ACTION + MASK_4},      // Rollade Schlafzimmer Dario     -> Roller-Action (Dario) 
+    {in_3R1,  EVENT_ROLLER_ACTION + ROLL_1},     // Rollade Kinderzimmer Bett      -> Roller-Action (Bett)
+    {in_3R2,  EVENT_ROLLER_ACTION + ROLL_2},     // Rollade Kinderzimmer Schrank   -> Roller-Action (Schrank)
+    {in_2R1,  EVENT_ROLLER_ACTION + ROLL_3},     // Rollade Schlafzimmer Yvonne    -> Roller-Action (Yvonne)
+    {in_2R2,  EVENT_ROLLER_ACTION + ROLL_4},     // Rollade Schlafzimmer Dario     -> Roller-Action (Dario) 
     {in_S1,   EVENT_TOGGLE + out_L1},            // Wohnzimmer 4er - 1             -> Licht Wohnzimmer 1
     {in_S2,   EVENT_TOGGLE + out_L2},            // Wohnzimmer 4er - 2             -> Licht Wohnzimmer 2
     {in_S3,   EVENT_TOGGLE + out_L3},            // Wohnzimmer 4er - 3             -> Licht Wohnzimmer 3
@@ -178,25 +176,25 @@ static const uint8_t FactoryDefaultClickTable[][2] PROGMEM = {
 
 
 // BUTTON_DOUBLE_CLICK - Events
-static const uint8_t FactoryDefaultClickDoubleTable[][3] PROGMEM = {        
-    {in_3R1,  EVENT_ROLLER_ACTION + MASK_1 + MASK_2}, // Rollade Kinderzimmer Bett      -> Roller-Action (1 + 2)
-    {in_3R2,  EVENT_ROLLER_ACTION + MASK_1 + MASK_2}, // Rollade Kinderzimmer Schrank   -> Roller-Action (1 + 2)
-    {in_2R1,  EVENT_ROLLER_ACTION + MASK_3 + MASK_4}, // Rollade Schlafzimmer Yvonne    -> Roller-Action (3 + 4) 
-    {in_2R2,  EVENT_ROLLER_ACTION + MASK_3 + MASK_4}, // Rollade Schlafzimmer Dario     -> Roller-Action (3 + 4)
-    {in_S1,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 1             -> [     ]
-    {in_S2,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 2             -> [     ]
-    {in_S3,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 3             -> [     ]
-    {in_S4,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 4             -> [     ]
-    {in_S5,   EVENT_SPECIAL},                         // Wohnzimmer Balkon oben         -> [     ] 
-    {in_S6,   EVENT_SPECIAL},                         // Wohnzimmer Balkon unten        -> [     ]
-    {in_S7,   EVENT_ROLLER_UP + MASK_3 + MASK_4},     // Wohnzimmer Schlafzimmer oben   -> Roller-Up   (3 + 4)
-    {in_S8,   EVENT_ROLLER_DOWN + MASK_3 + MASK_4},   // Wohnzimmer Schlafzimmer unten  -> Roller-Down (3 + 4)
-    {in_S9,   EVENT_ROLLER_UP + MASK_1 + MASK_2},     // Wohnzimmer Kinderzimmer oben   -> Roller-Up   (1 + 2)
-    {in_S10,  EVENT_ROLLER_DOWN + MASK_1 + MASK_2},   // Wohnzimmer Kinderzimmer unten  -> Roller-Down (1 + 2) 
+static const uint8_t FactoryDefaultClickDoubleTable[][2] PROGMEM = {        
+    {in_3R1,  EVENT_ROLLER_ACTION + ROLL_1 + ROLL_2}, // Rollade Kinderzimmer Bett      -> Roller-Action (1 + 2)
+    {in_3R2,  EVENT_ROLLER_ACTION + ROLL_1 + ROLL_2}, // Rollade Kinderzimmer Schrank   -> Roller-Action (1 + 2)
+    {in_2R1,  EVENT_ROLLER_ACTION + ROLL_3 + ROLL_4}, // Rollade Schlafzimmer Yvonne    -> Roller-Action (3 + 4) 
+    {in_2R2,  EVENT_ROLLER_ACTION + ROLL_3 + ROLL_4}, // Rollade Schlafzimmer Dario     -> Roller-Action (3 + 4)
+    {in_S1,   EVENT_NULL},                            // Wohnzimmer 4er - 1             -> [     ]
+    {in_S2,   EVENT_NULL},                            // Wohnzimmer 4er - 2             -> [     ]
+    {in_S3,   EVENT_NULL},                            // Wohnzimmer 4er - 3             -> [     ]
+    {in_S4,   EVENT_NULL},                            // Wohnzimmer 4er - 4             -> [     ]
+    {in_S5,   EVENT_NULL},                            // Wohnzimmer Balkon oben         -> [     ] 
+    {in_S6,   EVENT_NULL},                            // Wohnzimmer Balkon unten        -> [     ]
+    {in_S7,   EVENT_ROLLER_UP + ROLL_3 + ROLL_4},     // Wohnzimmer Schlafzimmer oben   -> Roller-Up   (3 + 4)
+    {in_S8,   EVENT_ROLLER_DOWN + ROLL_3 + ROLL_4},   // Wohnzimmer Schlafzimmer unten  -> Roller-Down (3 + 4)
+    {in_S9,   EVENT_ROLLER_UP + ROLL_1 + ROLL_2},     // Wohnzimmer Kinderzimmer oben   -> Roller-Up   (1 + 2)
+    {in_S10,  EVENT_ROLLER_DOWN + ROLL_1 + ROLL_2},   // Wohnzimmer Kinderzimmer unten  -> Roller-Down (1 + 2) 
     {in_S11,  EVENT_SPECIAL + SE_LEAVING},            // Diele Wohnunseingang           -> Leaving (alles aus, bis auf ...)
-    {in_2S1,  EVENT_SPECIAL},                         // Schlafzimmer                   -> [      ]
+    {in_2S1,  EVENT_NULL},                            // Schlafzimmer                   -> [      ]
     {in_7S1,  EVENT_TOGGLE  + out_L3},                // Küche                          -> Licht Licht Wohnzimmer 3
-    {in_7S2,  EVENT_SPECIAL},                         // Vorratskammer                  -> [      ]
+    {in_7S2,  EVENT_NULL},                            // Vorratskammer                  -> [      ]
     {in_13S1, EVENT_TOGGLE + out_13L3},               // Bad oben                       -> Licht Bad Sternenhimmel    
     {in_13S2, EVENT_TOGGLE + out_13L3},               // Bad unten                      -> Licht Bad Sternenhimmel
     {in_14S1, EVENT_TOGGLE + out_14L2},               // Gäste-WC                       -> Licht Gäste-WC Decke
@@ -204,49 +202,42 @@ static const uint8_t FactoryDefaultClickDoubleTable[][3] PROGMEM = {
 };
 
 // BUTTON_LONG_CLICK - Events
-static const uint8_t FactoryDefaultClickLongTable[][3] PROGMEM = {    
-    {in_3R1,  EVENT_ROLLER_STOP + MASK_1 + MASK_2},   // Rollade Kinderzimmer Bett      -> [Roller-Stop (1 + 2)]
-    {in_3R2,  EVENT_ROLLER_STOP + MASK_1 + MASK_2},   // Rollade Kinderzimmer Schrank   -> [Roller-Stop (1 + 2)]
-    {in_2R1,  EVENT_ROLLER_STOP + MASK_3 + MASK_4},   // Rollade Schlafzimmer Yvonne    -> [Roller-Stop (3 + 4)]
-    {in_2R2,  EVENT_ROLLER_STOP + MASK_3 + MASK_4},   // Rollade Schlafzimmer Dario     -> [Roller-Stop (3 + 4)]
-    {in_S1,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 1             -> [     ]
-    {in_S2,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 2             -> [     ]
-    {in_S3,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 3             -> [     ]
-    {in_S4,   EVENT_SPECIAL},                         // Wohnzimmer 4er - 4             -> [     ]
+static const uint8_t FactoryDefaultClickLongTable[][2] PROGMEM = {    
+    {in_3R1,  EVENT_ROLLER_STOP + ROLL_1 + ROLL_2},   // Rollade Kinderzimmer Bett      -> [Roller-Stop (1 + 2)]
+    {in_3R2,  EVENT_ROLLER_STOP + ROLL_1 + ROLL_2},   // Rollade Kinderzimmer Schrank   -> [Roller-Stop (1 + 2)]
+    {in_2R1,  EVENT_ROLLER_STOP + ROLL_3 + ROLL_4},   // Rollade Schlafzimmer Yvonne    -> [Roller-Stop (3 + 4)]
+    {in_2R2,  EVENT_ROLLER_STOP + ROLL_3 + ROLL_4},   // Rollade Schlafzimmer Dario     -> [Roller-Stop (3 + 4)]
+    {in_S1,   EVENT_NULL},                            // Wohnzimmer 4er - 1             -> [     ]
+    {in_S2,   EVENT_NULL},                            // Wohnzimmer 4er - 2             -> [     ]
+    {in_S3,   EVENT_NULL},                            // Wohnzimmer 4er - 3             -> [     ]
+    {in_S4,   EVENT_NULL},                            // Wohnzimmer 4er - 4             -> [     ]
     {in_S5,   EVENT_TOGGLE + out_6D1},                // Wohnzimmer Balkon oben         -> Balkon 
     {in_S6,   EVENT_SPECIAL + SE_CHRISTMAS},          // Wohnzimmer Balkon unten        -> (out_3D3 + out_3D4 + out_8D1)
     {in_S7,   EVENT_TOGGLE + out_6D1},                // Wohnzimmer Schlafzimmer oben   -> Balkon
     {in_S8,   EVENT_SPECIAL + SE_CHRISTMAS},          // Wohnzimmer Schlafzimmer unten  -> (out_3D3 + out_3D4 + out_8D1)
     {in_S9,   EVENT_TOGGLE + out_6D1},                // Wohnzimmer Kinderzimmer oben   -> Balkon
     {in_S10,  EVENT_SPECIAL + SE_CHRISTMAS},          // Wohnzimmer Kinderzimmer unten  -> (out_3D3 + out_3D4 + out_8D1)
-    {in_S11,  EVENT_SPECIAL},                         // Diele Wohnunseingang           -> [     ]
-    {in_2S1,  EVENT_SPECIAL},                         // Schlafzimmer                   -> [     ]
-    {in_7S1,  EVENT_SPECIAL},                         // Küche                          -> [     ]
-    {in_7S2,  EVENT_SPECIAL},                         // Vorratskammer                  -> [     ]
-    {in_13S1, EVENT_SPECIAL},                         // Bad oben                       -> [     ]
-    {in_13S2, EVENT_SPECIAL},                         // Bad unten                      -> [     ]
-    {in_14S1, EVENT_SPECIAL},                         // Gäste-WC                       -> [     ]
-    {in_3S2,  EVENT_SPECIAL}                          // Kinderzimmer                   -> [     ]
+    {in_S11,  EVENT_NULL},                            // Diele Wohnunseingang           -> [     ]
+    {in_2S1,  EVENT_NULL},                            // Schlafzimmer                   -> [     ]
+    {in_7S1,  EVENT_NULL},                            // Küche                          -> [     ]
+    {in_7S2,  EVENT_NULL},                            // Vorratskammer                  -> [     ]
+    {in_13S1, EVENT_NULL},                            // Bad oben                       -> [     ]
+    {in_13S2, EVENT_NULL},                            // Bad unten                      -> [     ]
+    {in_14S1, EVENT_NULL},                            // Gäste-WC                       -> [     ]
+    {in_3S2,  EVENT_NULL}                             // Kinderzimmer                   -> [     ]
 };
 
 /********************************************************
  * Spacial Events Table
  ********************************************************
- * Special Event Table is written to EEPROM during boot.
- ******************************************************** 
  * EEPROM Format: 
- * - Special Events are stored in two tables
- * - First Table is the Special Events Pointer Table.
- * - Starting at EE_OFFSET_SPECIAL_EVENT = 0x70
- *   - 0x070: Number of Special Events
- *   - 0x071, 0x072: Adress of 1st Special Event =SE1
- *     0x073, 0x074: Adress of 2nd Special Event
- *     - 0x070+(n*2),     0x071+(n*2)     : Adress Last Element 
- *     - 0x070+((n+1)*2), 0x071+((n+1)*2) : End-Adress Last Element 
- * - Each Special Event goes from [Address of Element] to [Address of next Element]-1
- *   -eg: SE#1 from 0xSE1 to 0xSE2-1
- * - All Commands of a Special Event are handled one after another.
- * - Ther are One-Byte and Multiple-Byte Commands:
+ * - Special Events are stored in one table
+ *   Starting at EE_OFFSET_SPECIAL_EVENT = 0x70
+ * - 0x070: Number of Special Events
+ * - 0x071: Number of Bytes for 1st Special Event = S1N
+ * - 0x072++: Commands of Special Event 1 =S1-C1 to S1C[S1N]
+ * - Commands of Special Event are handled one after another.
+ * - There are One-Byte and Multiple-Byte Commands:
  *   - One Byte Commands CCC-NNNNN with CCC=
  *     - 001: EVENT_ON,            NNNNN = Output which has to be switched on 0-31
  *     - 010: EVENT_OFF,           NNNNN = Output which has to be switched off 0-31
@@ -272,65 +263,37 @@ static const uint8_t FactoryDefaultClickLongTable[][3] PROGMEM = {
 static const uint8_t FactoryDefaultSpecialEventsTable[] PROGMEM = {    
     // # of Special Events:
     3,
-        // Special Event SE_3L1_3L2:
-        // 2  1-Byte Events 
-        //    Toggle 3L1
-        //    Toggle 3L2
-        2,                            
-            EVENT_TOGGLE + out_3L1,       
-            EVENT_TOGGLE + out_3L1,       
-        // Special Event SE_CHRISTMAS
-        // 3 1-Byte Events 
-        // Toggle 3D3
-        // Toggle 3D4
-        // Toggle 8D1
-        3,                            
-            EVENT_TOGGLE + out_3D3,       
-            EVENT_TOGGLE + out_3D4,       
-            EVENT_TOGGLE + out_8D1,       
-        // Special Event SE_LEAVING
-        // 17 1-Byte Events, 2 2-Byte Events
-        //    On L5
-        //    Wait 2s
-        //    Licht Wohnzimmer 1
-        //    Licht Wohnzimmer 2
-        //    Licht Wohnzimmer 3
-        //    Licht Wohnzimmer Säule
-        //    Licht Schlafzimmer
-        //    Licht Kinderzimmer Bettseite
-        //    Licht Kinderzimmer Schrankseite
-        //    Licht Küche
-        //    Licht Vorratskammer
-        //    Licht Bad Decke
-        //    Licht Bad Spiegel
-        //    Licht Bad Sternenhimmel
-        //    Licht Gäste-WC Spiegel
-        //    Licht Gäste-WC Decke
-        //    Licht Gäste-WC Motor
-        //    Wait 2s
-        //    Off L5
-        21,                           
-            EVENT_ON + out_L5,
-            CMD_WAIT, 20,     
-            EVENT_OFF + out_L1,
-            EVENT_OFF + out_L2,
-            EVENT_OFF + out_L3,
-            EVENT_OFF + out_L4,
-            EVENT_OFF + out_2L1,
-            EVENT_OFF + out_3L1,
-            EVENT_OFF + out_3L2,
-            EVENT_OFF + out_7L1,
-            EVENT_OFF + out_7L2,
-            EVENT_OFF + out_13L1,
-            EVENT_OFF + out_13L2,
-            EVENT_OFF + out_13L3,
-            EVENT_OFF + out_14L1,
-            EVENT_OFF + out_14L2,
-            EVENT_OFF + out_14M1,
-            CMD_WAIT, 20,        
-            EVENT_OFF + out_L5   
+        // ROOM3: Toggle both Lights in Room 3
+        2,                               // Two 1-Byte Events   
+            EVENT_TOGGLE + out_3L1,      // Toggle 3L1
+            EVENT_TOGGLE + out_3L1,      // Toggle 3L2
+        // CHRISTMAS: Toggle Outlets for Christmas-Lights       
+        3,                               // Three 1-Byte Events 
+            EVENT_TOGGLE + out_3D3,      // Toggle 3D3
+            EVENT_TOGGLE + out_3D4,      // Toggle 3D4
+            EVENT_TOGGLE + out_8D1,      // Toggle 8D1
+        // LEAVING: All Lights OFF        
+        21,                              // 17 1-Byte Events, 2 2-Byte Events           
+            EVENT_ON + out_L5,           // On L5                                    
+            CMD_WAIT, 20,                // Wait 2s                                  
+            EVENT_OFF + out_L1,          // Licht Wohnzimmer 1                       
+            EVENT_OFF + out_L2,          // Licht Wohnzimmer 2                       
+            EVENT_OFF + out_L3,          // Licht Wohnzimmer 3                       
+            EVENT_OFF + out_L4,          // Licht Wohnzimmer Säule                   
+            EVENT_OFF + out_2L1,         // Licht Schlafzimmer                       
+            EVENT_OFF + out_3L1,         // Licht Kinderzimmer Bettseite             
+            EVENT_OFF + out_3L2,         // Licht Kinderzimmer Schrankseite          
+            EVENT_OFF + out_7L1,         // Licht Küche                              
+            EVENT_OFF + out_7L2,         // Licht Vorratskammer                      
+            EVENT_OFF + out_13L1,        // Licht Bad Decke                          
+            EVENT_OFF + out_13L2,        // Licht Bad Spiegel                        
+            EVENT_OFF + out_13L3,        // Licht Bad Sternenhimmel                  
+            EVENT_OFF + out_14L1,        // Licht Gäste-WC Spiegel                   
+            EVENT_OFF + out_14L2,        // Licht Gäste-WC Decke                     
+            EVENT_OFF + out_14M1,        // Licht Gäste-WC Motor                     
+            CMD_WAIT, 20,                // Wait 2s                                  
+            EVENT_OFF + out_L5           // Off L5                                   
 };
-
 
 
 /********************************************************

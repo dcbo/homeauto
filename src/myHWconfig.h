@@ -180,10 +180,10 @@
 /************************************************************
  * Mask Values for Roller Selection
  ************************************************************/ 
-#define MASK_1        0x01     // 0000 0001
-#define MASK_2        0x02     // 0000 0010
-#define MASK_3        0x04     // 0000 0100
-#define MASK_4        0x08     // 0000 1000
+#define ROLL_1        0x01     // 0000 0001
+#define ROLL_2        0x02     // 0000 0010
+#define ROLL_3        0x04     // 0000 0100
+#define ROLL_4        0x08     // 0000 1000
 
 
 #endif // _MYHWCONFIG_H_

@@ -38,8 +38,10 @@
 #define EVENT_ROLLER_DOWN     (6<<5)   // followed by Roller MASK                         [0xC0]        
 #define EVENT_ROLLER_STOP     (7<<5)   // followed by Roller MASK                         [0xE0] 
 // Special Commands 
-#define CMD_SPEED             0x00     // Wait 0.N Seconds after each following Command (max 25.5s) - 2 Byte Command
-#define CMD_WAIT              0x01     // Wait 0.N Seconds (max 25.5s) - 2 Byte Command
+#define CMD_SPEED             0x01     // Wait 0.N Seconds after each following Command (max 25.5s) - 2 Byte Command
+#define CMD_WAIT              0x02     // Wait 0.N Seconds (max 25.5s) - 2 Byte Command
+#define CMD_ON_MASK           0x03     // Switch ON  Outputs accorting Mask - 5 Byte Command
+#define CMD_OFF_MASK          0x04     // Switch OFF Outputs accorting Mask - 5 Byte Command
  
 
 /********************************************************

@@ -373,7 +373,13 @@ uint8_t readByteFromE2PROM (uint16_t E2Adr) {
 }
 
 
-void writeToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
+/************************************************************
+ * writeByteToE2PROM
+ * Write one byte to EEPROM
+ * @param[in] E2Adr Address where the Byte is written
+ * @param[in] E2Val Value which shall be written 
+ ************************************************************/ 
+void writeByteToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
   // Debug Output
   #if DEBUG_EE_WRITE
     DBG_EE_WRITE.print(F("EE-Write: Adr 0x"));    
@@ -388,35 +394,10 @@ void writeToE2PROM (uint16_t E2Adr, uint8_t E2Val) {
   if (E2Adr < EEPROM.length()){
     EEPROM.write(E2Adr, E2Val);                
   } else {
-    DBG_ERROR.print(F("ERROR: writeToE2PROM failes: Address out of scope: "));
+    DBG_ERROR.print(F("ERROR: writeByteToE2PROM failes: Address out of scope: "));
     DBG_ERROR.println(E2Adr);
   }
 }
-
-
-/*
-void writeToE2PROM (uint16_t E2Adr, uint16_t E2Val) {
-  // Debug Output
-  #if DEBUG_EE_WRITE
-    DBG_EE_WRITE.print(F(" Adr:0x"));
-    if (E2Adr < 0x100) DBG_EE_WRITE.print(F("0"));
-    if (E2Adr < 0x10) DBG_EE_WRITE.print(F("0"));
-    DBG_EE_WRITE.print(E2Adr,HEX);             
-    DBG_EE_WRITE.print(F(", Value:0x"));
-    if (E2Val < 0x1000) DBG_EE_WRITE.print(F("0"));
-    if (E2Val < 0x100) DBG_EE_WRITE.print(F("0"));
-    if (E2Val < 0x10) DBG_EE_WRITE.print(F("0"));
-    DBG_EE_WRITE.println(E2Val,HEX);    
-  #endif // DEBUG_EE_INIT
-  // Write to EEPROM  
-  if (E2Adr < (EEPROM.length()-1){
-    EEPROM.write(E2Adr, E2Val);                
-  } else {
-    DBG_ERROR.print(F("ERROR: writeToE2PROM[16 Bit] failed: Address out of scope: "));
-    DBG_ERROR.println(E2Adr);
-  }
-}
-*/
 
 
 /************************************************************
@@ -480,8 +461,7 @@ void resetToFactoryDefaults (void) {
   boolean dontStore;
   uint16_t E2Adr;
   uint8_t E2Val;  
-  uint8_t entryNum;
-  uint16_t SCPointerAdr;  
+  uint8_t entryNum;  
   uint8_t inPin;  
   uint8_t eventType;  
   uint8_t outPin;    
@@ -491,31 +471,32 @@ void resetToFactoryDefaults (void) {
   uint8_t SECount;        // Counter of Special Events  
   uint8_t SCBytes;        // Bytes of Special Command
   uint8_t SCCount;        // Counter of Special Command
-  uint8_t upTime;    
+  uint8_t upTime;      
   uint8_t downTime;  
   uint8_t rollerPin;
   uint8_t closeTime;
-  uint8_t setupValue;    
+  uint8_t setupValue;     
+  uint8_t myIndex;
   
-  // Clear E2PROM  
+  // ### Clear E2PROM ### 
   // Click, Double-Click, Long-Click Tables 
   DBG_EE_INIT.print(F(" -> E2PROM - Erase Click, Double-Click and Long-ClickTables ... "));
   for (E2Adr = EE_OFFSET_CLICK; E2Adr < EE_OFFSET_ROLLER; E2Adr++) {    
-    writeToE2PROM(E2Adr, 0x00);
+    writeByteToE2PROM(E2Adr, 0x00);
   }    
   DBG_EE_INIT.println(F("done."));
   // Roller Table 
   DBG_EE_INIT.print(F(" -> E2PROM - Erase Roller-Tables ... "));
   for (E2Adr = EE_OFFSET_ROLLER; E2Adr < EE_OFFSET_SPECIAL_EVENT; E2Adr++) {        
-    writeToE2PROM(E2Adr, 0xff);
+    writeByteToE2PROM(E2Adr, 0xff);
   }    
   DBG_EE_INIT.println(F("done."));
   // Special Events (set first Elemet to 0)
   DBG_EE_INIT.print(F(" -> E2PROM - Erase Special Event Table ... "));
-  writeToE2PROM(EE_OFFSET_SPECIAL_EVENT, 0x0);    
+  writeByteToE2PROM(EE_OFFSET_SPECIAL_EVENT, 0x0);    
   DBG_EE_INIT.println(F("done."));
-  
-  // Click-Configuration one Table each loop 
+  // ### Click-Configuration Tables ###
+  // one Table each loop 
   // - Loop 0: ClickTable 
   // - Loop 1: DoubleClickTable
   // - Loop 2: LongClickTable   
@@ -561,7 +542,7 @@ void resetToFactoryDefaults (void) {
       if (!dontStore){
         E2Val = (eventType << 5) | (outPin & 0x1f);
         E2Adr = inPin + (FDTableNum * MCP_IN_PINS);
-        writeToE2PROM(E2Adr, E2Val);
+        writeByteToE2PROM(E2Adr, E2Val);
       } else {
         DBG_EE_INIT.println(F(" - ERROR - Value not stored"));
         DBG_ERROR.print(F("ERROR: Factory Default Click Table Entry #"));
@@ -576,8 +557,7 @@ void resetToFactoryDefaults (void) {
       }
     }
   }    
-
-  // Roller-Configuration Table
+  // ### Roller-Configuration Table ### 
   // get Tablesize
   FDTableSize = readFactoryDefaultTable (TABLE_INDEX_ROLLER, 0, 0) / 4;       
   E2Adr = EE_OFFSET_ROLLER;
@@ -611,62 +591,58 @@ void resetToFactoryDefaults (void) {
     #endif // DEBUG_EE_INIT       
     // Write Roller outPin to EEPROM    
     E2Val = rollerPin;
-    writeToE2PROM(E2Adr, E2Val);           
+    writeByteToE2PROM(E2Adr, E2Val);           
     E2Adr++;    
     // Write upTime to EEPROM    
     E2Val = upTime;        
-    writeToE2PROM(E2Adr, E2Val);
+    writeByteToE2PROM(E2Adr, E2Val);
     E2Adr++;
     // Write downTime to EEPROM    
     E2Val = downTime;    
-    writeToE2PROM(E2Adr, E2Val);
+    writeByteToE2PROM(E2Adr, E2Val);
     E2Adr++;
     // Write closeTime to EEPROM    
     E2Val = closeTime;    
-    writeToE2PROM(E2Adr, E2Val);
+    writeByteToE2PROM(E2Adr, E2Val);
     E2Adr++;
-  }       
-  // Special Events 
-  // # of Special Events     
-  SENum = pgm_read_byte( &FactoryDefaultSpecialEventsTable[0]);
+  }      
+  // ### Special Events ###   
+  myIndex = 0;
+  // get # of Special Events     
+  SENum = pgm_read_byte( &FactoryDefaultSpecialEventsTable[myIndex]);  
   #if DEBUG_EE_INIT    
     DBG_EE_INIT.println(F("EE-Init - Special Events"));
     DBG_EE_INIT.print(F("   - Number of Special Events: "));
     DBG_EE_INIT.println(SENum);    
-  #endif // DEBUG_EE_INIT
-  E2Adr = EE_OFFSET_SPECIAL_EVENT;
-  E2Val = SENum;
-  writeToE2PROM(E2Adr, E2Val);
-  // Store Special Events Table
-  E2Adr = EE_OFFSET_SPECIAL_EVENT + 1 + (SENum * 2);  
-  entryNum = 1;
-  for (SECount = 0; SECount < SENum; SECount++ ) {    
-    // Pointer to Elements
-    SCPointerAdr = EE_OFFSET_SPECIAL_EVENT + 1 + (SECount * 2);
+  #endif // DEBUG_EE_INIT      
+  writeByteToE2PROM(EE_OFFSET_SPECIAL_EVENT + myIndex, SENum);  
+  myIndex++;
+  // Iterate through Special Events   
+  for (SECount = 0; SECount < SENum; SECount++ ) {        
     #if DEBUG_EE_INIT    
       DBG_EE_INIT.print(F("   - Special Event "));
       DBG_EE_INIT.println(SECount + 1);
-      DBG_EE_INIT.print(F("     - Starts @: "));
-      DBG_EE_INIT.println(E2Adr, HEX);
     #endif // DEBUG_EE_INIT    
-    // Get number of Byte for this Command
-    SCBytes = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
-    entryNum++;
+    // Get # of Byte for this Command
+    SCBytes = pgm_read_byte( &FactoryDefaultSpecialEventsTable[myIndex]);    
     #if DEBUG_EE_INIT    
       DBG_EE_INIT.print(F("     - Number of Bytes: "));    
       DBG_EE_INIT.println(SCBytes);
+    #endif // DEBUG_EE_INIT    
+    writeByteToE2PROM(EE_OFFSET_SPECIAL_EVENT + myIndex, SCBytes);
+    myIndex++;
+    // Get Data for this Command
+    #if DEBUG_EE_INIT    
       DBG_EE_INIT.print(F("     - Data: "));    
-    #endif // DEBUG_EE_INIT
-    writeToE2PROM(SCPointerAdr, E2Adr);
+    #endif // DEBUG_EE_INIT    
     for (SCCount = 0; SCCount < SCBytes; SCCount++ ) {
-      E2Val = pgm_read_byte( &FactoryDefaultSpecialEventsTable[entryNum]);
-      entryNum++;
+      E2Val = pgm_read_byte( &FactoryDefaultSpecialEventsTable[myIndex]);
       if  (SCCount != 0) {
         DBG_EE_INIT.print(F(", "));    
-      }      
-      DBG_EE_INIT.print(E2Val);      
-      writeToE2PROM(E2Adr, E2Val);
-      E2Adr++;
+      }            
+      DBG_EE_INIT.print(E2Val);            
+      writeByteToE2PROM(EE_OFFSET_SPECIAL_EVENT + myIndex, E2Val);      
+      myIndex++;
     }
     DBG_EE_INIT.println(F(""));    
   }  
@@ -675,11 +651,11 @@ void resetToFactoryDefaults (void) {
 /************************************************************
  * get Action from EEPROM
  ************************************************************
- * Determine what to do on a Click-Event occured
+ * Determine what to do when a Click-, Double-Click or Long-Click Event occured
  * @param[in] clickType BUTTON_CLICK, BUTTON_CLICK_DOUBLE or BUTTON_CLICK_LONG
- * @param[in] pinNumber Number of the input Pin where the Click occured
- * @returns EVENT [0-7] and Parameter [0-31]
- *          Encoded to one Byte (EVENT) << 5 + Parameter  
+ * @param[in] pinNumber Number of the input Pin where the Event occured
+ * @returns Action [0-7] and Parameter [0-31]
+ *          Encoded to one Byte [AAAP PPPP]: Action << 5 + Parameter 
  ************************************************************/
 uint8_t getActionFromEEprom (uint8_t clickType, uint8_t pinNumber) {
   uint16_t E2Adr;
@@ -692,6 +668,7 @@ uint8_t getActionFromEEprom (uint8_t clickType, uint8_t pinNumber) {
   } 
   return (E2Val); 
 }
+
 
 /************************************************************
  * getRollerFromEEprom
@@ -721,14 +698,10 @@ void getRollerFromEEprom (uint8_t roller, uint8_t& upPin, uint8_t& downPin,
 /********************************************************
  * Special Events Table
  ********************************************************
- * Get next Command from Special Events Table
- * @param[in] specialEvent No of Special Event - STARTING WITH 1
- * @param[in,out] counter Command Byte Number  - STARTING WITH 0
- * @param[out] param Parameter for Command if it was a 2 Byte Command
- * @returns Command @ counter as 
- *          - 0 if there is no further command 
- *          - counter+1 if it was a 1 Byte Command
- *          - counter+2 if it was a 2 Byte Command
+ * Read Special Events Table
+ * @param[in] specialEvent no of Special Event     - STARTING WITH 1
+ * @param[in] counter Byte Number of Special Event - STARTING WITH 0 
+ * @returns Byte stored at counter Position
  ********************************************************
  * EEPROM Format: 
  * - Special Events are stored in one table
@@ -746,42 +719,49 @@ void getRollerFromEEprom (uint8_t roller, uint8_t& upPin, uint8_t& downPin,
  *     - 101: EVENT_ROLLER_UP,     NNNNN = Roller MASK
  *     - 110: EVENT_ROLLER_DOWN,   NNNNN = Roller MASK
  *     - 111: EVENT_ROLLER_STOP,   NNNNN = Roller MASK
- *   - Multi Byte Commands 000MMMMM = 0x00-0x1f
- *     - 0x00 0xNN: CMD_SPEED              Wait 0.N Seconds after each command (max 25.5s) - 2 Byte Command
- *     - 0x01 0xNN: CMD_WAIT               Wait 0.N Seconds (max 25.5s)   - 2 Byte Command
- *     - 0x02 0xLLLLLLLL: CMD_ON_MASK      Switch ON all MASK Bits set    - 5 Byte Command
- *     - 0x03 0xLLLLLLLL: CMD_OFF_MASK     Switch OFF all MASK Bits set   - 5 Byte Command 
+ *   - Multi Byte Commands 000MMMMM = 0x01-0x1f
+ *       Command           Params (each one Byte)
+ *     - 0x01 CMD_SPEED    N           - Wait 0.1*N Seconds after each command (max 25.5s) - 2 Byte Command
+ *     - 0x02 CMD_WAIT     N           - Wait 0.1*N Seconds (max 25.5s)      - 2 Byte Command
+ *     - 0x03 CMD_ON_MASK  A B C D     - Switch ON  all MASK Bits (ABCD) set - 5 Byte Command
+ *     - 0x04 CMD_OFF_MASK A B C D     - Switch OFF all MASK Bits (ABCD) set - 5 Byte Command 
  ********************************************************/
-uint8_t getSpecialEventFromEEprom (uint8_t specialEvent, uint8_t& counter, uint8_t& param) {
+uint8_t getSpecialEventFromEEprom (uint8_t specialEvent, uint8_t counter) {
   uint16_t E2Adr;    // EEPROM Address  
   uint8_t SENum;     // Number of Special Events
   uint8_t SELength;  // Length of Special Events
   uint8_t SECmd;     // Special Events Command
-  uint8_t i;         
-  
+  uint8_t SECounter; // Counter to iterate over Special Events 
+  // Read Number of Special Events  
   E2Adr = EE_OFFSET_SPECIAL_EVENT;  
-  SENum = readByteFromE2PROM (E2Adr);
-  E2Adr++;
-  if (specialEvent < (SENum + 1) ){
-    // find Special Event Startpoint
-    for (i=1; i<specialEvent; i++){      
-      SELength = readByteFromE2PROM (E2Adr);
-      E2Adr += (SELength + 1);
-    }      
+  SENum = readByteFromE2PROM (E2Adr);  
+  if (specialEvent == 0) {
+    // return Number of Special Events if specialEvent = 0
+    return (SENum);    
+  } else if (specialEvent > SENum) {
+    // return 0 if Special Events does not exist
+    return (0);
+  } else {
+    // return next Byte of Special Event
+    E2Adr++;  
+    if (specialEvent < (SENum + 1) ){
+      // find Special Event Startpoint
+      for (SECounter=1; SECounter<specialEvent; SECounter++) {      
+        SELength = readByteFromE2PROM (E2Adr);
+        E2Adr += (SELength + 1);
+      }      
+    }
+    // E2Adr points to the length of Special Event searched for
+    SELength = readByteFromE2PROM (E2Adr);  
+    if (counter == 0) {
+      return (SELength);
+    } else if (counter > SELength) {
+      return (0);
+    } else {
+      SECmd = readByteFromE2PROM (E2Adr + counter);  
+      return (SECmd); 
+    }    
   }
-  // E2Adr points to the length of the Special Event searched for
-  SELength = readByteFromE2PROM (E2Adr);  
-  // Now read the [counter]-th byte
-  if (counter < SELength) {
-    SECmd = readByteFromE2PROM (E2Adr + counter);  
-    counter++;
-  }
-  // Get 2nd Byte if SECmd is a two Byte Command
-  if ((SECmd & 0b11100000) == 0) {
-    SECmd = readByteFromE2PROM (E2Adr + counter);  
-    counter++;
-  }
-  return (SECmd); 
 }
 
 
@@ -941,7 +921,6 @@ void setOutputs(uint32_t newOutState) {
 void processIrq(void) {    
   uint16_t i_port;    
   uint8_t intstate;
-
   // Print Value
   if (g_irqFlag) {
     // Print Portstate      
@@ -954,7 +933,6 @@ void processIrq(void) {
     g_irqFlag = false;    
   } 
   delay(100);
-
   // Arduino IRQ-Pin changed        
   intstate = digitalRead(INT_PIN);
   if (g_lastIntState != intstate) {
@@ -964,8 +942,7 @@ void processIrq(void) {
       DBG_IRQ.println(g_lastIntState);      
     #endif // DEBUG_IRQ   
   } 
-
-  // Reset IRQ State if INT=0 (cative)
+  // Reset IRQ State if INT=0 (active)
   if (!intstate){      
     if (millis() - g_lastResetTime > IRQ_RESETINTERVAL) {
       g_lastResetTime = millis();
@@ -993,7 +970,7 @@ void processIrq(void) {
 
 
 /************************************************************
- * rollerUp
+ * rollerUp 
  ************************************************************
  * Move Roller Up (BLOCKING)
  ************************************************************/
@@ -1036,36 +1013,31 @@ void rollerDown(){
 void scanButtons(void) {           
   uint32_t thisstate;   // state of this scan
   boolean dothisscan;   // scan this time
-  
+  // init vars
   dothisscan = false;
-  thisstate = 0x0000;
-    
+  thisstate = 0x0000;    
   // IRQ occured [1]
   if (g_irqFlag) {     
     dothisscan = true;        
     g_irqFlag = false;    
     g_buttonPollingActive = true;
-    g_lastButtonIrqTime = millis();
-  
-  // If scan is still active [2]
+    g_lastButtonIrqTime = millis();    
   } else if (g_buttonPollingActive) {
-    // scan every BUTTON_SCANINT[ms]  [3]
+    // scan is still active [2]    
     if (millis() - g_lastButtonIrqTime > BUTTON_SCANINT) {
+      // scan every BUTTON_SCANINT[ms]  [3]
       dothisscan = true;              
     }
-  }
-  
+  }  
   // Do a scan
   if (dothisscan) {     
     // Read all GPIO Registers        
-    thisstate = (uint32_t)mcp[0].readGPIOAB() + ((uint32_t)mcp[1].readGPIOAB() << 16);
-        
+    thisstate = (uint32_t)mcp[0].readGPIOAB() + ((uint32_t)mcp[1].readGPIOAB() << 16);        
     // State changed?
     if (thisstate != g_lastButtonState) {    
       g_lastButtonState = thisstate;      
       DBG_STATE_CHANGE.print(F("Scan: "));
       printStateABCD(thisstate);
-
       // Reset MCP IRQ Registers, if all Inputs = 0 
       if (thisstate == 0) {
         // Reset IRQ 
@@ -1080,15 +1052,15 @@ void scanButtons(void) {
         }
       }
     }    
-  } // dothisscan
+  } 
 }
 
 
 /************************************************************
  * printClickCommand
  ************************************************************ * 
- * Prints Command stored in EEPROM for [""|Double-|Long-]Click-Event
- * @param[in] cType Click Event Type (0 to 2)
+ * Prints Command stored in EEPROM for [Click|Double-Click|Long-Click] Event
+ * @param[in] cType Click Event Type: BUTTON_CLICK, BUTTON_CLICK_DOUBLE or BUTTON_CLICK_LONG
  * @param[in] inPin Input Pin
  ************************************************************/
 void printClickCommand (uint8_t cType, uint8_t inPin) {
@@ -1125,8 +1097,7 @@ void printClickCommand (uint8_t cType, uint8_t inPin) {
       }
     } 
     DBG.print(par);   
-    DBG.print(F(" - "));   
-
+    DBG.print(F(" - "));
     // Print Command in clear
     switch (E2Val & 0b11100000) {    
       case EVENT_SPECIAL:
@@ -1202,16 +1173,16 @@ void printClickCommandTable (uint8_t cType) {
  * Prints the Roller Configuration stored in EEPROM 
  ************************************************************/
 void printRollerConfiguration(void) {
-  uint8_t i;     
-  uint8_t upPin;
-  uint8_t downPin;
-  uint8_t upTime; 
-  uint8_t downTime;
-  uint8_t defaultTime;
-  for (i = 1; i < 5; i++) {     
-    getRollerFromEEprom  (i, upPin, downPin, upTime, downTime, defaultTime);
+  uint8_t rollCounter;    // Counter to iterate over rollers
+  uint8_t upPin;          // Output pin to drive roller up
+  uint8_t downPin;        // Output pin to drive roller down
+  uint8_t upTime;         // Time to completely travel UP (*500ms)
+  uint8_t downTime;       // Time to completely travel DOWN (*500ms)
+  uint8_t defaultTime;    // Time to travel DOWN default Close-Position (*500ms)
+  for (rollCounter = 0; rollCounter < 4; rollCounter++) {     
+    getRollerFromEEprom  (rollCounter + 1, upPin, downPin, upTime, downTime, defaultTime);
     DBG.print(F(" - Roller "));
-    DBG.print(i);
+    DBG.print(rollCounter + 1);
     DBG.print(F(" - Pin Up: "));
     DBG.print(upPin);
     DBG.print(F(" - Pin Down: "));
@@ -1227,6 +1198,77 @@ void printRollerConfiguration(void) {
 }
 
 
+/************************************************************
+ * printSpecialEventsConfiguration
+ ************************************************************  
+ * Prints the Special Events Configuration stored in EEPROM 
+ ************************************************************/
+void printSpecialEventsConfiguration(void) {  
+  uint8_t SENum;         // Number of Special Events
+  uint8_t SECnt;         // Counter to iterate over all Special Events 
+  uint8_t SELen;         // Length of current Special Events
+  uint8_t byteCnt;       // Counter to iterate over all Byte of one Special Event
+  uint8_t cmdCnt;        // Counter for commands in one Special Event
+  uint8_t cmdByte;       // Command Byte of one Special Event Command
+  uint8_t paramCnt;      // Number of additional Parameters for actual Special Event Command
+  uint8_t addParams;     // Value of additional Parameters for actual Special Event Command
+  SECnt = 0;
+  byteCnt = 0;
+  // Get Number of Special Events
+  SENum = getSpecialEventFromEEprom (SECnt, byteCnt);  
+  DBG.print(F(" - Number of Special Events: "));
+  DBG.println(SENum);  
+  // Iterate through all Special Events
+  for (SECnt = 1; SECnt < (SENum + 1); SECnt++) {
+    DBG.print(F(" - Special Event: "));
+    DBG.println(SECnt);
+    // Get Number of Bytes for actual Special Events    
+    SELen = getSpecialEventFromEEprom (SECnt, 0);
+    DBG.print(F("   - Length of Special Event: "));
+    DBG.println(SELen);
+    cmdCnt = 1;
+    for (byteCnt = 1; byteCnt < (SELen + 1); byteCnt++) {
+      DBG.print(F("   - Command "));      
+      DBG.print(cmdCnt);
+      cmdByte = getSpecialEventFromEEprom (SECnt, byteCnt);
+      DBG.print(F(": "));
+      if (cmdByte < 0x10) {
+        DBG.print(F("0"));
+      }
+      DBG.print(cmdByte, HEX);
+      // is it a Multi Byte Commands 000MMMMM = 0x00-0x1f
+      if ((cmdByte & 0xe0) == 0){
+        switch (cmdByte) {
+          // 2-Byte Commands
+          case CMD_SPEED:
+          case CMD_WAIT:
+            addParams = 1;
+            break;
+          // 4-Byte Commands
+          case CMD_ON_MASK:
+          case CMD_OFF_MASK:
+            addParams = 4;
+            break;          
+        };
+        DBG.print(F(" - Params: "));
+        for (paramCnt = 0; paramCnt < addParams; paramCnt++){
+          byteCnt++;
+          cmdByte = getSpecialEventFromEEprom (SECnt, byteCnt);
+          if (paramCnt != 0) {
+            DBG.print(F(", "));
+          }          
+          if (cmdByte < 0x10) {
+            DBG.print(F("0"));
+          }
+          DBG.print(cmdByte, HEX);
+        }
+      }
+      DBG.println(F(""));
+      cmdCnt++;
+    }    
+  }  
+}
+
 
 /************************************************************
  * printConfig
@@ -1236,18 +1278,20 @@ void printRollerConfiguration(void) {
  ************************************************************/
 void printConfig (void) {
   // Click Table  
-  DBG.println(F("Click Table:"));
+  DBG.println(F("\nClick Table:"));
   printClickCommandTable(0);
   // Double-Click Table  
-  DBG.println(F("Double-Click Table:"));
+  DBG.println(F("\nDouble-Click Table:"));
   printClickCommandTable(1);
   // Long-Click Table  
-  DBG.println(F("Long-Click Table:"));
+  DBG.println(F("\nLong-Click Table:"));
   printClickCommandTable(2);
   // Roller Configuration
-  DBG.println(F("Roller Configuration:"));  
-  printRollerConfiguration();
-  
+  DBG.println(F("\nRoller Configuration:"));  
+  printRollerConfiguration();  
+  // Special Events Configuration
+  DBG.println(F("\nSpecial Events Configuration:"));  
+  printSpecialEventsConfiguration();  
 }
 
 
@@ -1255,43 +1299,43 @@ void printConfig (void) {
  * Main Loop
  ************************************************************/
 void loop(){ 
-  uint32_t newout;
+  // uint32_t newout;
   //scanButtons();
   //speedTest();
   //readInputs();
-  //processIrq();
-  while (false){
-    DBG.println(F("RollerTest"));
-    rollerUp();
-    delay(30000);
-    //rollerDown();
-    delay(30000);   
-  }
-  // rollerUp();
-  DBG.println(F("resetToFactoryDefaults"));  
+  //processIrq();  
+  
+  //rollerDown();
+  //rollerUp();
+  
+  DBG.println(F("\n\nresetToFactoryDefaults"));  
   resetToFactoryDefaults();
 
-  DBG.println(F("printConfig"));  
+  DBG.println(F("\n\nprintConfig"));  
   printConfig();
 
-  DBG.println(F("delay (50000000L);"));
-  delay (50000000L);
+  
+  // end here
+  while (true) {
+    DBG.println(F("delay (3600000L);"));
+    delay (3600000L);
+  }
 
-  if (millis() - g_lastOutTime > 50000000) {
+  //if (millis() - g_lastOutTime > 50000000) {
     
-    g_lastOutTime = millis();
-    g_lastButtonState++;
-    if (g_lastButtonState == 1){
-      newout = 0xFF00;      
-    } else {
-      newout = 0x00FF;
-      g_lastButtonState =0;
-    }
-    DBG_OUTPUT.print(F("Out: "));
-    DBG_OUTPUT.println(newout,HEX);
-    mcp[2].writeGPIOAB(newout);
-    mcp[3].writeGPIOAB(newout);
+    //g_lastOutTime = millis();
+    //g_lastButtonState++;
+    //if (g_lastButtonState == 1){
+    //  newout = 0xFF00;      
+    //} else {
+    //  newout = 0x00FF;
+    //  g_lastButtonState =0;
+    //}
+    //DBG_OUTPUT.print(F("Out: "));
+    //DBG_OUTPUT.println(newout,HEX);
+    //mcp[2].writeGPIOAB(newout);
+    //mcp[3].writeGPIOAB(newout);
     //MCP23017_GPIOA
     // mcp[3].writeGPIOAB(newout);
-  }
+ //  }
 } 

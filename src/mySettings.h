@@ -228,7 +228,7 @@ static const uint8_t FactoryDefaultClickLongTable[][2] PROGMEM = {
 };
 
 /********************************************************
- * Spacial Events Table
+ * Special Events Table
  ********************************************************
  * EEPROM Format: 
  * - Special Events are stored in one table
@@ -247,26 +247,22 @@ static const uint8_t FactoryDefaultClickLongTable[][2] PROGMEM = {
  *     - 110: EVENT_ROLLER_DOWN,   NNNNN = Roller MASK
  *     - 111: EVENT_ROLLER_STOP,   NNNNN = Roller MASK
  *   - Multi Byte Commands 000MMMMM = 0x00-0x1f
- *     - 0x00 0xNN: CMD_SPEED              Wait 0.N Seconds after each command (max 25.5s) - 2 Byte Command
- *     - 0x01 0xNN: CMD_WAIT               Wait 0.N Seconds (max 25.5s)   - 2 Byte Command
- *     - 0x02 0xLLLLLLLL: CMD_ON_MASK      Switch ON all MASK Bits set    - 5 Byte Command
- *     - 0x03 0xLLLLLLLL: CMD_OFF_MASK     Switch OFF all MASK Bits set   - 5 Byte Command 
+ *     - 0x01 0xNN: CMD_SPEED              Wait 0.N Seconds after each command (max 25.5s) - 2 Byte Command
+ *     - 0x02 0xNN: CMD_WAIT               Wait 0.N Seconds (max 25.5s)   - 2 Byte Command
+ *     - 0x03 0xLLLLLLLL: CMD_ON_MASK      Switch ON all MASK Bits set    - 5 Byte Command
+ *     - 0x04 0xLLLLLLLL: CMD_OFF_MASK     Switch OFF all MASK Bits set   - 5 Byte Command 
  ********************************************************
  * In Order to use the Names for Inputs and Outputs the
  * following Field is stored in FLASH as factory default.
  * During Boot it is used to generate the EEPROM Table
  ********************************************************/
-// Special Events
-
-
-
 static const uint8_t FactoryDefaultSpecialEventsTable[] PROGMEM = {    
     // # of Special Events:
     3,
         // ROOM3: Toggle both Lights in Room 3
         2,                               // Two 1-Byte Events   
             EVENT_TOGGLE + out_3L1,      // Toggle 3L1
-            EVENT_TOGGLE + out_3L1,      // Toggle 3L2
+            EVENT_TOGGLE + out_3L2,      // Toggle 3L2
         // CHRISTMAS: Toggle Outlets for Christmas-Lights       
         3,                               // Three 1-Byte Events 
             EVENT_TOGGLE + out_3D3,      // Toggle 3D3

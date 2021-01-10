@@ -2,7 +2,7 @@
  * @file configTools.cpp
  */
 #include <configTools.h>
-
+#include <EEPROM.h>
 
 /************************************************************
  * readByteFromE2PROM (private)

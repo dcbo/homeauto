@@ -19,7 +19,6 @@
 #define _CONFIGTOOLS_H_
 
 #include <Arduino.h>
-#include <EEPROM.h>
 #include <debugOptions.h>
 #include <mySettings.h>
 

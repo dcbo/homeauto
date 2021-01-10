@@ -22,10 +22,7 @@
  ************************************************************/ 
 #include <Arduino.h>
 #include <debugOptions.h>
-// #include <EEPROM.h>
-#include <Wire.h>
 #include <mcp23017_DC.h>
-#include <mySettings.h>
 #include <configTools.h>
 
 /************************************************************
@@ -569,7 +566,7 @@ void loop(){
   // readInputs();
   // processIrq();  
   
-  rollerDown();
+  // rollerDown();
   // rollerUp();
   
   DBG.println(F("\n\nresetToFactoryDefaults"));    

@@ -17,6 +17,9 @@
 #ifndef _MYSETTINGS_H_
 #define _MYSETTINGS_H_
 
+#include <myHWconfig.h>
+#include <myDefines.h>
+
 /********************************************************
  * Input (Button) Names
  ********************************************************/

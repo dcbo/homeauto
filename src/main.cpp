@@ -569,8 +569,8 @@ void loop(){
   // readInputs();
   // processIrq();  
   
-  // rollerDown();
-  rollerUp();
+  rollerDown();
+  // rollerUp();
   
   DBG.println(F("\n\nresetToFactoryDefaults"));    
   myconfig.resetToFactoryDefaults();

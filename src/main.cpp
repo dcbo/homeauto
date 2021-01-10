@@ -1317,7 +1317,7 @@ void loop(){
   // processIrq();  
   
   // rollerDown();
-  // rollerUp();
+  rollerUp();
   
   // DBG.println(F("\n\nresetToFactoryDefaults"));  
   // resetToFactoryDefaults();

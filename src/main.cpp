@@ -4,6 +4,7 @@
 # define STATESTOP  0B00000000
 # define LED_ON     digitalWrite(13, HIGH)
 # define LED_OFF    digitalWrite(13, LOW)
+# define BUTTON     11
 
 /************************************************************
  * Darios Homeautomatisation v2
@@ -24,6 +25,7 @@
 #include <debugOptions.h>
 #include <mcp23017_DC.h>
 #include <configTools.h>
+#include <EEPROM.h>
 
 /************************************************************
  * Program Configuration Control
@@ -470,16 +472,52 @@ void processIrq(void) {
 
 
 /************************************************************
+ * timerOrButton
+ ************************************************************
+ * Wait for time or until button pressed
+ * returns true if button was pressed
+ ************************************************************/
+boolean timerOrButton(uint16_t t){  
+  boolean buttonReleased;
+  uint32_t starttime = millis();  
+  DBG.print(F("timerOrButton - "));        
+  DBG.print(t);        
+  DBG.print(F(" ... "));        
+  // Button released?
+  buttonReleased = digitalRead(BUTTON);
+  // int running = 1;  
+  while (true) {
+    if ((millis() - starttime) > t) {
+      // running = 0;      
+      DBG.println(F("false"));        
+      return(false);
+    }
+    if (buttonReleased) {
+      if (! digitalRead(BUTTON)) {        
+        DBG.println(F("true"));   
+        return(true);     
+      }      
+    } else {
+      buttonReleased = digitalRead(BUTTON);      
+    }    
+  }
+}
+
+
+/************************************************************
  * rollerUp 
  ************************************************************
  * Move Roller Up (BLOCKING)
  ************************************************************/
-void rollerUp(){  
+void rollerUp(){      
   DBG.println(F("Moving Up"));
   // Start Moving Down
   LED_ON;
+  DBG.println(F("up start"));
   mcp[2].writeGPIOAB(STATEUP);
-  delay (25000);
+  delay(25000);
+  // timerOrButton (25000);    
+  DBG.println(F("up stop"));
   mcp[2].writeGPIOAB(STATESTOP);
   LED_OFF;
 }
@@ -489,17 +527,48 @@ void rollerUp(){
  ************************************************************
  * Move Roller Down (BLOCKING)
  ************************************************************/
-void rollerDown(){  
+void rollerDown(){    
   DBG.println(F("Moving DOWN"));
   // Start Moving Down
   LED_ON;
-  mcp[2].writeGPIOAB(STATEDOWN);
-  delay (14000);
-  mcp[2].writeGPIOAB(STATEDOWN2);
-  delay (4000);  
+  DBG.println(F("down start"));
+  mcp[2].writeGPIOAB(STATEDOWN);  
+  delay(14000);
+  // if (! timerOrButton (14000)) {
+  DBG.println(F("stop 2-4"));
+  mcp[2].writeGPIOAB(STATEDOWN2);  
+  timerOrButton (4000);  
+  delay(4000);
+  // }  
+  DBG.println(F("down stop"));
   mcp[2].writeGPIOAB(STATESTOP);
   LED_OFF;
 }
+
+/************************************************************
+ * rollerHandleTimer
+ ************************************************************
+ * - Stop Roller if timer expired
+ * - Global Vars needed
+ *   - roller[0] - roller[4]
+ *   - roller[0] - roller[4]
+ ************************************************************/
+void rollerHandleTimer(){      
+  // 
+
+  LED_ON;
+  DBG.println(F("down start"));
+  mcp[2].writeGPIOAB(STATEDOWN);  
+  if (! timerOrButton (14000)) {
+    DBG.println(F("stop 2-4"));
+    mcp[2].writeGPIOAB(STATEDOWN2);  
+    timerOrButton (4000);  
+  }  
+  DBG.println(F("down stop"));
+  mcp[2].writeGPIOAB(STATESTOP);
+  LED_OFF;
+}
+
 
 /************************************************************
  * Scan Input Buttons
@@ -561,28 +630,60 @@ void scanButtons(void) {
 void loop(){ 
   
   // scanButtons();
-
   // speedTest();
   // readInputs();
   // processIrq();  
-  
+  delay(500);
   // rollerDown();
   // rollerUp();
-  
-  DBG.println(F("\n\nresetToFactoryDefaults"));    
-  myconfig.resetToFactoryDefaults();
 
-  DBG.println(F("\n\nprintConfig"));    
-  myconfig.printConfig();
+  // DBG.println(F("\n\nresetToFactoryDefaults"));    
+  // myconfig.resetToFactoryDefaults();
 
-  
+  //DBG.println(F("\n\nprintConfig"));    
+  //myconfig.printConfig();
+
+  // Rolladennotfunktion  
+  uint16_t E2Adr;
+  uint8_t E2Val;
+  E2Adr = 0x142;
+  pinMode(BUTTON,INPUT_PULLUP);  // inverted (button pressed = 0)
+  // Read state from EEPROM
+  E2Val = EEPROM.read (E2Adr);
+  // If State is invalif, set to UP (0)
+  if (E2Val > 1) {
+    E2Val = 1;    
+    EEPROM.write(E2Adr, E2Val);       
+  }  
+  // Loop forever
+  while (true) {
+    // if Button pressed 
+    if (!digitalRead(BUTTON)) {
+      if (E2Val == 0) {
+        DBG.println(F("Rollade runter ... \n  "));
+        rollerDown();
+        E2Val = 1;
+        EEPROM.write(E2Adr, E2Val);
+      } else {
+        DBG.println(F("Rollade hoch ... \n  "));
+        rollerUp();
+        E2Val = 0;
+        EEPROM.write(E2Adr, E2Val);
+      }      
+      // wait untill Button released
+      while (digitalRead(BUTTON)) {
+        delay (10);
+      }
+    }
+  }
+
   // end here
   while (true) {
     DBG.println(F("delay (3600000L);"));
     delay (3600000L);
   }
 
-  // uint32_t newout;
+    // uint32_t newout;
   //if (millis() - g_lastOutTime > 50000000) {    
     //g_lastOutTime = millis();
     //g_lastButtonState++;
@@ -599,4 +700,5 @@ void loop(){
     //MCP23017_GPIOA
     // mcp[3].writeGPIOAB(newout);
  //  }
+
 } 

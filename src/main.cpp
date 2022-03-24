@@ -24,7 +24,7 @@
 #include <Arduino.h>
 #include <debugOptions.h>
 #include <mcp23017_DC.h>
-#include <configTools.h>
+//#include <configTools.h>
 #include <EEPROM.h>
 
 /************************************************************

@@ -44,7 +44,7 @@
 volatile bool g_irqFlag = false;
 boolean  g_buttonPollingActive;   //! Polling of Buttons every 10ms active
 uint32_t g_lastButtonState;       //! Last State of Buttons
-uint32_t g_lastButtonIrqTime;     //! Time when last IRQ was handled 
+uint32_t g_lastButtonReadTime;     //! Time when last IRQ was handled 
 uint32_t g_lastButtonScanTime;    //! Last Time when Buttons (Inputs) habe been read
 uint8_t  g_lastIntState;          //! Last State of INT0 Pin
 uint32_t g_lastOutState;          //! Last State of Output Ports 
@@ -246,7 +246,7 @@ void setup() {
   
   g_buttonPollingActive = false;    
   g_irqFlag = false;
-  g_lastButtonIrqTime = millis();
+  g_lastButtonReadTime = millis();
   g_lastButtonState = 0;
   g_lastButtonScanTime = millis();
   g_lastIntState = 0xff;
@@ -322,7 +322,7 @@ void setOutputs(uint32_t newOutState) {
   * e.g.: ": -1----11 -1----11 -1----11 -1----11 [0x6767]"
   * @param[in] v State to be printed 
   ************************************************************/
-  void printStateABCD(uint32_t v) {
+  void printMcpStateABCD(uint32_t v) {
     uint8_t i;        
     // Print Bits  
     for (i=0; i<32; i++) {      
@@ -590,10 +590,10 @@ void scanButtons(void) {
     dothisscan = true;        
     g_irqFlag = false;    
     g_buttonPollingActive = true;
-    g_lastButtonIrqTime = millis();    
+    g_lastButtonReadTime = millis();    
   } else if (g_buttonPollingActive) {
     // scan is still active [2]    
-    if (millis() - g_lastButtonIrqTime > BUTTON_SCANINT) {
+    if (millis() - g_lastButtonReadTime > BUTTON_SCANINT) {
       // scan every BUTTON_SCANINT[ms]  [3]
       dothisscan = true;              
     }
@@ -606,7 +606,7 @@ void scanButtons(void) {
     if (thisstate != g_lastButtonState) {    
       g_lastButtonState = thisstate;      
       DBG_STATE_CHANGE.print(F("Scan: "));
-      printStateABCD(thisstate);
+      printMcpStateABCD(thisstate);
       // Reset MCP IRQ Registers, if all Inputs = 0 
       if (thisstate == 0) {
         // Reset IRQ 
@@ -616,7 +616,7 @@ void scanButtons(void) {
         mcp[1].readRegister(MCP23017_INTCAPA);
         mcp[1].readRegister(MCP23017_INTCAPB);
         // End Scan [4]
-        if (millis() - g_lastButtonIrqTime > BUTTON_SCANINT) {
+        if (millis() - g_lastButtonReadTime > BUTTON_SCANINT) {
           g_buttonPollingActive = false;      
         }
       }
